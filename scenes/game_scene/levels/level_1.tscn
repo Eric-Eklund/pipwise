@@ -3,6 +3,8 @@
 [ext_resource type="Script" path="res://scenes/game_scene/levels/level_1.gd" id="1_level1"]
 [ext_resource type="Script" path="res://scenes/game_scene/cards/hand_view.gd" id="2_handview"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/cards/card_view.tscn" id="3_cardview"]
+[ext_resource type="Script" path="res://scenes/game_scene/dice/dice_tray.gd" id="4_dicetray"]
+[ext_resource type="PackedScene" path="res://scenes/game_scene/dice/die_view.tscn" id="5_dieview"]
 
 [node name="Level1" type="Control" unique_id=266725257]
 layout_mode = 3
@@ -37,7 +39,7 @@ theme_override_constants/margin_bottom = 24
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1666223033]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
 [node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=153752389]
 layout_mode = 2
@@ -48,11 +50,31 @@ horizontal_alignment = 1
 [node name="DeckLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=153752390]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 16
 text = "Deck 52    Discard 0"
 horizontal_alignment = 1
 
-[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=153752391]
+[node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=153752391]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DiceTray" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=153752396]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 16
+alignment = 1
+script = ExtResource("4_dicetray")
+die_view_scene = ExtResource("5_dieview")
+
+[node name="DiceLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=153752397]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Bag 6    Used 0    Mult x1.0"
+horizontal_alignment = 1
+
+[node name="BottomSpacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=153752398]
 layout_mode = 2
 size_flags_vertical = 3
 
@@ -60,26 +82,14 @@ size_flags_vertical = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 alignment = 1
 script = ExtResource("2_handview")
 card_view_scene = ExtResource("3_cardview")
 
-[node name="ButtonRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=153752393]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="RedrawButton" type="Button" parent="MarginContainer/VBoxContainer/ButtonRow" unique_id=153752394]
+[node name="PlayButton" type="Button" parent="MarginContainer/VBoxContainer" unique_id=153752395]
 custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
-size_flags_horizontal = 3
-text = "Redraw"
-
-[node name="PlayButton" type="Button" parent="MarginContainer/VBoxContainer/ButtonRow" unique_id=153752395]
-custom_minimum_size = Vector2(0, 64)
-layout_mode = 2
-size_flags_horizontal = 3
 text = "Play"
 
-[connection signal="pressed" from="MarginContainer/VBoxContainer/ButtonRow/RedrawButton" to="." method="_on_redraw_button_pressed"]
-[connection signal="pressed" from="MarginContainer/VBoxContainer/ButtonRow/PlayButton" to="." method="_on_play_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
