@@ -26,6 +26,10 @@ func get_seed() -> int:
 func randi_range(from : int, to : int) -> int:
 	return _rng.randi_range(from, to)
 
+## Uniform in [0, 1). Used for weighted picks.
+func randf() -> float:
+	return _rng.randf()
+
 ## Fisher-Yates, in place.
 func shuffle(array : Array) -> void:
 	for i in range(array.size() - 1, 0, -1):
