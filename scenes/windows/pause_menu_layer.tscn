@@ -42,18 +42,6 @@ text = "Resume"
 layout_mode = 2
 text = "Restart"
 
-[node name="SaveGameButton" type="Button" parent="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons" parent_id_path=PackedInt32Array(1220268013, 1371114575) index="2" unique_id=1861484331]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-text = "Save Game"
-
-[node name="LoadGameButton" type="Button" parent="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons" parent_id_path=PackedInt32Array(1220268013, 1371114575) index="3" unique_id=800791711]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-text = "Load Game"
-
 [node name="OptionsButton" type="Button" parent="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons" parent_id_path=PackedInt32Array(1220268013, 1371114575) index="4" unique_id=2034260124]
 unique_name_in_owner = true
 layout_mode = 2
@@ -93,8 +81,6 @@ text = "Exit the game?"
 
 [connection signal="hidden" from="PauseMenu" to="." method="_on_pause_menu_hidden"]
 [connection signal="pressed" from="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons/RestartButton" to="PauseMenu" method="_on_restart_button_pressed"]
-[connection signal="pressed" from="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons/SaveGameButton" to="PauseMenu" method="_on_save_game_button_pressed"]
-[connection signal="pressed" from="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons/LoadGameButton" to="PauseMenu" method="_on_load_game_button_pressed"]
 [connection signal="pressed" from="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons/OptionsButton" to="PauseMenu" method="_on_options_button_pressed"]
 [connection signal="pressed" from="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons/MainMenuButton" to="PauseMenu" method="_on_main_menu_button_pressed"]
 [connection signal="pressed" from="PauseMenu/ContentContainer/BoxContainer/MenuButtonsMargin/MenuButtons/ExitButton" to="PauseMenu" method="_on_exit_button_pressed"]

@@ -1,4 +1,9 @@
-extends Node
+class_name Level
+extends Control
+## Base contract for every level in the game.
+##
+## LevelManager duck-types onto these three signals to drive level flow,
+## so any scene that emits them plugs into the existing level system.
 
 signal level_lost
 signal level_won(level_path : String)
@@ -6,32 +11,18 @@ signal level_won(level_path : String)
 signal level_changed(level_path : String)
 
 ## Optional path to the next level if using an open world level system.
+## Left empty, LevelManager falls back to its SceneLister for the next level.
 @export_file("*.tscn") var next_level_path : String
 
 var level_state : LevelState
 
-func _on_lose_button_pressed() -> void:
-	level_lost.emit()
-
-func _on_win_button_pressed() -> void:
-	level_won.emit(next_level_path)
-
-func open_tutorials() -> void:
-	%TutorialManager.open_tutorials()
-	level_state.tutorial_read = true
-	GlobalState.save()
-
 func _ready() -> void:
 	level_state = GameState.get_level_state(scene_file_path)
-	%ColorPickerButton.color = level_state.color
-	%BackgroundColor.color = level_state.color
-	if not level_state.tutorial_read:
-		open_tutorials()
 
-func _on_color_picker_button_color_changed(color : Color) -> void:
-	%BackgroundColor.color = color
-	level_state.color = color
-	GlobalState.save()
+## Call when the player clears the level.
+func win() -> void:
+	level_won.emit(next_level_path)
 
-func _on_tutorial_button_pressed() -> void:
-	open_tutorials()
+## Call when the player fails the level.
+func lose() -> void:
+	level_lost.emit()
