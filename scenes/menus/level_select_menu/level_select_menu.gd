@@ -1,14 +1,13 @@
 extends Control
 
-## Loads a simple ItemList node within a margin container. SceneLister updates
-## the available scenes in the directory provided. Activating a level will update
-## the GameState's current_level, and emit a signal. The main menu node will trigger
-## a load action from that signal.
+## Loads a simple ItemList node within a margin container. The list is built from
+## the levels the player has reached, which GameState records in level_states.
+## Activating a level updates the GameState's checkpoint and emits a signal.
+## The main menu node will trigger a load action from that signal.
 
 signal level_selected
 
 @onready var level_buttons_container: ItemList = %LevelButtonsContainer
-@onready var scene_lister: SceneLister = $SceneLister
 var level_paths : Array[String]
 
 func _ready() -> void:
