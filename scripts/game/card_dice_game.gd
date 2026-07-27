@@ -25,6 +25,10 @@ enum State { SETUP, PLAYING, WON, LOST }
 var ruleset : Ruleset
 var context : GameContext
 var state : State = State.SETUP
+## What the hand on the table is worth as it stands. Recomputed after every
+## change, so the HUD can read it rather than evaluating the hand again on each
+## redraw. Null until start().
+var preview : HandScore
 ## What the hand was worth when it was saved. Null until then.
 var last_score : HandScore
 
@@ -178,7 +182,7 @@ func save_hand() -> void:
 	if not can_save_hand():
 		return
 	_refresh_score()
-	last_score = preview_score()
+	last_score = preview
 	hand_saved.emit(last_score)
 
 	if _objective.is_met(context):
@@ -191,10 +195,20 @@ func save_hand() -> void:
 ## Recomputes what the hand is worth as it stands. Called after every change, so
 ## the objective and the HUD can read context.score instead of each evaluating
 ## the hand for themselves.
+##
+## Also marks which cards are carrying the hand. The flag lives on the card
+## rather than in the view because it is derived from the rules — a boss that
+## bans pairs has to un-frame the pair, and only the engine knows that.
 func _refresh_score() -> void:
-	var score := preview_score()
-	context.score = score.total()
-	context.current_category = score.category
+	preview = preview_score()
+	context.score = preview.total()
+	context.current_category = preview.category
+
+	for card in context.hand.cards:
+		card.is_scoring = false
+	for card in preview.scoring_cards:
+		card.is_scoring = true
+
 	progress_changed.emit()
 
 func _on_energy_changed() -> void:

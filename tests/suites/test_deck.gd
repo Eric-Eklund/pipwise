@@ -43,10 +43,10 @@ func test_discard_returns_cards_to_the_deck() -> void:
 func test_discard_clears_per_play_state() -> void:
 	var drawn := _deck.draw(2)
 	drawn[0].is_selected = true
-	drawn[1].is_locked = true
+	drawn[1].is_scoring = true
 	_deck.discard(drawn)
 	assert_false(drawn[0].is_selected, "selection must not survive a discard")
-	assert_false(drawn[1].is_locked, "locks must not survive a discard")
+	assert_false(drawn[1].is_scoring, "a card out of the hand carries nothing")
 
 func test_empty_draw_pile_reshuffles_the_discard() -> void:
 	var drawn := _deck.draw(52)

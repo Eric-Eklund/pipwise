@@ -94,6 +94,28 @@ func test_a_banned_pair_scores_as_a_high_card() -> void:
 	)
 	assert_eq(score.label, "High Card")
 
+## The frame has to follow what was scored, not what the cards look like. With
+## pairs banned there is no pair to point at, and framing one would promise
+## points the player is not getting.
+func test_a_banned_pair_is_not_framed() -> void:
+	var context := _context()
+	var ban := CategoryBanModifier.new()
+	ban.banned = [C.PAIR]
+	ban.on_level_start(context)
+	var score := PokerHandEvaluator.new().evaluate(
+		_cards([[5, S], [5, H], [9, D], [11, C_SUIT], [13, S]]), context
+	)
+	assert_eq(score.scoring_cards.size(), 1, "the high card alone")
+	assert_eq(score.scoring_cards[0].data.rank, 13, "the king, not one of the fives")
+
+func test_an_allowed_pair_is_framed() -> void:
+	var score := PokerHandEvaluator.new().evaluate(
+		_cards([[5, S], [5, H], [9, D], [11, C_SUIT], [13, S]]), _context()
+	)
+	assert_eq(score.scoring_cards.size(), 2)
+	for card in score.scoring_cards:
+		assert_eq(card.data.rank, 5)
+
 func test_the_bonus_raises_straights_and_flushes() -> void:
 	var context := _context()
 	var bonus := CategoryBonusModifier.new()

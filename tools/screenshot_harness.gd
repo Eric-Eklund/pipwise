@@ -62,6 +62,7 @@ func _ready() -> void:
 ##
 ##     --select=0,1  mark those cards for swapping
 ##     --lock=2      pay to keep that die
+##     --guide=1     open the hand guide
 func _drive(scene : Node, args : Dictionary) -> void:
 	var level := scene as CardDiceLevel
 	if level == null or level.game == null:
@@ -72,6 +73,10 @@ func _drive(scene : Node, args : Dictionary) -> void:
 	for index in _parse_indices(String(args.get("lock", ""))):
 		if index < level.game.get_dice().size():
 			level.game.toggle_lock(level.game.get_dice()[index])
+	if args.has("guide"):
+		var button := level.find_child("GuideButton", true, false) as Button
+		if button != null:
+			button.pressed.emit()
 
 func _parse_indices(text : String) -> Array[int]:
 	var indices : Array[int] = []

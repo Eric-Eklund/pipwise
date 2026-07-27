@@ -47,7 +47,8 @@ func evaluate(cards : Array[Card], context : GameContext) -> HandScore:
 		context.total_energy(),
 		multiplier,
 		PokerHandClassifier.category_name(category),
-		category
+		category,
+		PokerHandClassifier.scoring_cards(cards, category, run_length)
 	)
 
 ## The best shape the hand forms that a boss has not ruled out. A banned pair

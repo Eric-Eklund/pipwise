@@ -107,6 +107,95 @@ static func classify_all(cards : Array[Card], run_length : int = 5) -> Array[Cat
 	result.append(Category.HIGH_CARD)
 	return result
 
+## Which of these cards actually make up [param category].
+##
+## The view frames them so the player can see what they are building. That means
+## it has to agree exactly with what was scored — including when a boss has
+## banned the hand the cards obviously form, in which case the caller passes the
+## category that survived and the frame lands on the high card instead.
+static func scoring_cards(
+	cards : Array[Card], category : Category, run_length : int = 5
+) -> Array[Card]:
+	var result : Array[Card] = []
+	if cards.is_empty():
+		return result
+
+	match category:
+		# The shape is the whole hand — every card is part of the run or the suit.
+		Category.STRAIGHT, Category.FLUSH, Category.STRAIGHT_FLUSH:
+			return cards.duplicate()
+		Category.HIGH_CARD:
+			result.append(_highest(cards))
+			return result
+
+	var wanted := _ranks_forming(cards, category)
+	for card in cards:
+		if card.data.rank in wanted:
+			result.append(card)
+	return result
+
+## The ranks whose repeats build [param category], best first. A hand can hold
+## more than the shape needs — three pairs in six cards make a two pair — so the
+## strongest ranks win and the rest are left out of the frame.
+static func _ranks_forming(cards : Array[Card], category : Category) -> Array[int]:
+	var counts : Dictionary = {}
+	for card in cards:
+		counts[card.data.rank] = int(counts.get(card.data.rank, 0)) + 1
+
+	var minimum := 2
+	var wanted_count := 1
+	match category:
+		Category.FOUR_OF_A_KIND:
+			minimum = 4
+		Category.THREE_OF_A_KIND:
+			minimum = 3
+		Category.TWO_PAIR:
+			wanted_count = 2
+		Category.FULL_HOUSE:
+			return _full_house_ranks(counts)
+
+	var candidates : Array[int] = []
+	for rank in counts:
+		if int(counts[rank]) >= minimum:
+			candidates.append(int(rank))
+	_sort_by_value(candidates)
+	return candidates.slice(0, wanted_count)
+
+## A full house is the best three-of-a-kind plus the best other pair. Picking the
+## triple first matters: with two triples the second one is the pair.
+static func _full_house_ranks(counts : Dictionary) -> Array[int]:
+	var triples : Array[int] = []
+	var pairs : Array[int] = []
+	for rank in counts:
+		if int(counts[rank]) >= 3:
+			triples.append(int(rank))
+		elif int(counts[rank]) >= 2:
+			pairs.append(int(rank))
+	_sort_by_value(triples)
+	_sort_by_value(pairs)
+	if triples.is_empty():
+		return []
+
+	var result : Array[int] = [triples[0]]
+	if pairs.is_empty():
+		# Two triples: the weaker one plays the part of the pair.
+		if triples.size() > 1:
+			result.append(triples[1])
+	else:
+		result.append(pairs[0])
+	return result
+
+## Strongest first, with an ace counting high.
+static func _sort_by_value(ranks : Array[int]) -> void:
+	ranks.sort_custom(func(a : int, b : int) -> bool: return card_value(a) > card_value(b))
+
+static func _highest(cards : Array[Card]) -> Card:
+	var best : Card = cards[0]
+	for card in cards:
+		if card_value(card.data.rank) > card_value(best.data.rank):
+			best = card
+	return best
+
 ## Aces count high or low, so both A-2-3-4-5 and 10-J-Q-K-A are runs.
 static func _is_straight(ranks : Array[int], run_length : int) -> bool:
 	if ranks.size() < run_length:

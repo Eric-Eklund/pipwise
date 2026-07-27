@@ -11,6 +11,11 @@ extends VBoxContainer
 ## target, so a future shape-based objective displays correctly without this
 ## file changing.
 
+## Asks the level to open the hand guide. The HUD does not open it itself: the
+## window has to cover the whole board, and a view that reaches outside its own
+## rect to parent something is how the level and the HUD stop being separable.
+signal guide_requested
+
 const BOSS_COLOR := Color(0.85, 0.45, 0.62)
 
 var _game : CardDiceGame
@@ -18,8 +23,8 @@ var _game : CardDiceGame
 @onready var _boss_label : Label = %BossLabel
 @onready var _objective_label : Label = %ObjectiveLabel
 @onready var _progress_label : Label = %ProgressLabel
-@onready var _hand_label : Label = %HandLabel
 @onready var _breakdown_label : Label = %BreakdownLabel
+@onready var _guide_button : Button = %GuideButton
 
 ## Endless mode rebinds this every round, so the previous game is released the
 ## same way HandView releases a previous hand.
@@ -49,10 +54,14 @@ func _show_boss() -> void:
 		_boss_label.text += "\n" + ruleset.boss_description
 	_boss_label.add_theme_color_override(&"font_color", BOSS_COLOR)
 
+func _ready() -> void:
+	_guide_button.pressed.connect(func() -> void: guide_requested.emit())
+
+## The hand's name is not shown here. It lives under the cards, next to the ones
+## it is naming, so the frame and the name read as one thing.
 func _refresh() -> void:
 	if _game == null:
 		return
 	_progress_label.text = _game.get_objective().get_progress_text(_game.context)
-	var score := _game.preview_score()
-	_hand_label.text = score.label
-	_breakdown_label.text = score.breakdown_text()
+	if _game.preview != null:
+		_breakdown_label.text = _game.preview.breakdown_text()

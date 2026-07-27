@@ -45,15 +45,21 @@ func _draw() -> void:
 		return
 	var rect := Rect2(Vector2(0.0, -lift), size)
 	var selected : bool = card.is_selected
+	var scoring : bool = card.is_scoring
 
 	var texture := skin.get_texture(card.data)
 	if texture != null:
 		draw_texture_rect(texture, rect, false)
-		if selected:
-			draw_rect(rect, skin.selected_border_color, false, skin.border_width * 2.0)
+		if selected or scoring:
+			var border := skin.selected_border_color if selected else skin.scoring_border_color
+			draw_rect(rect, border, false, skin.border_width * 2.0)
+		if scoring:
+			_draw_scoring_bar(rect)
 		return
 
-	draw_style_box(skin.build_body_box(selected), rect)
+	draw_style_box(skin.build_body_box(selected, scoring), rect)
+	if scoring:
+		_draw_scoring_bar(rect)
 
 	var font := _get_font()
 	if font == null:
@@ -61,6 +67,20 @@ func _draw() -> void:
 	var ink := skin.get_ink(card.data)
 	_draw_indices(rect, font, ink)
 	_draw_centre(rect, font, ink)
+
+## A solid bar along the bottom edge, in the scoring colour.
+##
+## The cards making up a hand are often not next to each other — a pair can sit
+## at positions one and four — so a single frame around the group would swallow
+## the cards in between. Matching bars read as one group without lying about
+## which cards belong to it.
+func _draw_scoring_bar(rect : Rect2) -> void:
+	var height := rect.size.y * skin.scoring_bar_ratio
+	var inset := skin.corner_radius * 0.5
+	draw_rect(Rect2(
+		rect.position + Vector2(inset, rect.size.y - height - skin.border_width),
+		Vector2(rect.size.x - inset * 2.0, height)
+	), skin.scoring_border_color)
 
 ## Rank over suit in the top-left corner, repeated upside down in the
 ## bottom-right the way a real card reads from either end.

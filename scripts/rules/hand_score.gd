@@ -17,19 +17,25 @@ var label : String = ""
 ## Carried so objectives and the HUD can ask what the hand *is* without
 ## classifying it a second time.
 var category : int = -1
+## The cards that actually make up the shape. The view frames these, so they
+## have to be the ones that were scored and not the ones that merely look like
+## a hand — a banned pair is not in here.
+var scoring_cards : Array[Card] = []
 
 func _init(
 	cards : int = 0,
 	dice : int = 0,
 	mult : float = 1.0,
 	score_label : String = "",
-	score_category : int = -1
+	score_category : int = -1,
+	scored : Array[Card] = []
 ) -> void:
 	card_points = cards
 	dice_points = dice
 	multiplier = mult
 	label = score_label
 	category = score_category
+	scoring_cards = scored
 
 func base_points() -> int:
 	return card_points + dice_points

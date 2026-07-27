@@ -1,4 +1,4 @@
-[gd_scene format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scenes/game_scene/hud/score_hud.gd" id="1_scorehud"]
 
@@ -15,25 +15,31 @@ text = "Frost King"
 horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="ObjectiveLabel" type="Label" parent="."]
+[node name="ObjectiveRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="ObjectiveLabel" type="Label" parent="ObjectiveRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "Reach 100 points"
+text = "Reach 71 points"
 horizontal_alignment = 1
+
+[node name="GuideButton" type="Button" parent="ObjectiveRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(30, 30)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "What each hand is worth"
+text = "?"
 
 [node name="ProgressLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 34
-text = "0 / 100"
-horizontal_alignment = 1
-
-[node name="HandLabel" type="Label" parent="."]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "High Card"
+text = "0 / 71"
 horizontal_alignment = 1
 
 [node name="BreakdownLabel" type="Label" parent="."]
