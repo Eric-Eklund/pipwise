@@ -57,9 +57,15 @@ func _find_suites() -> Array[String]:
 	dir.list_dir_begin()
 	var file_name := dir.get_next()
 	while file_name != "":
-		if not dir.current_is_dir() and file_name.begins_with("test_"):
-			# Exported and .import'd projects report .gd as .gd.remap.
-			paths.append("%s/%s" % [SUITE_DIR, file_name.trim_suffix(".remap")])
+		if not dir.current_is_dir():
+			# Importing writes a .gd.uid beside every script, and exported
+			# projects report .gd as .gd.remap. Normalise the remap away, then
+			# insist on a real script — otherwise the .uid files get loaded too
+			# and every one of them fails.
+			var script_name := file_name.trim_suffix(".remap")
+			var path := "%s/%s" % [SUITE_DIR, script_name]
+			if script_name.begins_with("test_") and script_name.ends_with(".gd") and path not in paths:
+				paths.append(path)
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	paths.sort()
