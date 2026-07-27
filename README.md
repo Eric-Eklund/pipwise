@@ -129,7 +129,17 @@ godot --headless --script res://tests/run_tests.gd
 ```
 
 The harness is hand-rolled and lives in `tests/test_case.gd` — small enough to
-read in one sitting. It runs on every push via `.github/workflows/tests.yml`.
+read in one sitting.
+
+```
+godot --headless res://tools/playthrough_probe.tscn
+```
+
+Plays every level scene through its own Take, Roll and Bank buttons and fails if
+any run deadlocks or never reaches a verdict. The suite above never draws a
+frame, so it cannot see a board where the rules are fine and every button happens
+to be disabled; this can. Both run on every push via
+`.github/workflows/tests.yml`.
 
 ### Balance
 

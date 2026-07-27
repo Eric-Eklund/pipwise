@@ -6,10 +6,15 @@ README explains the game; this file is how to work on it.
 ## Run it
 
 ```
-godot --headless --script res://tests/run_tests.gd     # the engine suite
-godot --headless --script res://tools/balance_probe.gd  # the difficulty curve
+godot --headless --script res://tests/run_tests.gd       # the engine suite
+godot --headless res://tools/playthrough_probe.tscn      # every level, through its buttons
+godot --headless --script res://tools/balance_probe.gd   # the difficulty curve
 godot --headless --script res://tools/generate_campaign.gd
 ```
+
+The first two run in CI. Note which are scenes and which are scripts: anything
+that instantiates a level has to be a scene, because the levels reach `GameState`
+on ready and the autoloads only exist when a scene is run.
 
 The main scene is `scenes/opening/opening.tscn`. Target is **720x1280 portrait**,
 renderer `gl_compatibility`.
@@ -30,8 +35,13 @@ one deliberate exception is `DieView._show_random_face`, which is visual noise
 during a roll animation and must *not* consume the seeded stream — it says so.
 
 **Every engine change needs a test.** `tests/suites/` and a hand-rolled harness in
-`tests/test_case.gd`, small enough to read in one sitting. CI runs it on every
-push via `.github/workflows/tests.yml`.
+`tests/test_case.gd`, small enough to read in one sitting.
+
+**Every UI change needs the playthrough probe.** The suite calls the engine
+directly, so it can never see a board where the rules are fine and every button
+happens to be disabled — the player stuck looking at dice they cannot act on.
+`tools/playthrough_probe.tscn` presses the real buttons and is the only thing
+that catches that.
 
 **Level scenes are generated, never hand-edited.** `tools/generate_campaign.gd`
 writes `resources/campaign.tres`, the ten `level_N.tscn` files, and the scene list
