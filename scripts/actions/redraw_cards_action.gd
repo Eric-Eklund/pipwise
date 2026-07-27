@@ -1,14 +1,16 @@
 class_name RedrawCardsAction
 extends DieAction
-## Discards the selected cards and draws replacements.
+## Replaces every unlocked card in the hand and deals back up to full.
 ##
-## Requires a selection, so the player chooses what to throw away rather than
-## the die deciding for them.
+## Pairs with LockCardAction: lock what is worth keeping, then redraw the rest.
+## Locks clear on their own once a card leaves the hand, because Deck.discard
+## resets the flag.
 
 func can_apply(context : GameContext) -> bool:
-	return context.hand.selected_count() > 0
+	return not context.hand.get_unlocked().is_empty()
 
 func apply(context : GameContext) -> void:
-	var replaced := context.hand.take_selected()
+	var replaced := context.hand.get_unlocked()
+	context.hand.remove(replaced)
 	context.deck.discard(replaced)
 	context.refill_hand()
