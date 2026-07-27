@@ -120,7 +120,7 @@ reproducible.
 ## Running
 
 Open the project in Godot 4.7 and press play. The main scene is
-`scenes/opening/opening.tscn`. Target resolution is **720x1280 portrait** and the
+`scenes/opening/opening.tscn`. Target resolution is **540x960 portrait** and the
 renderer is `gl_compatibility`.
 
 ### Tests

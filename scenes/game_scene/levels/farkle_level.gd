@@ -56,6 +56,9 @@ func _ready() -> void:
 	super()
 	_dice_tray.die_pressed.connect(_on_die_pressed)
 	_score_hud.guide_requested.connect(_on_guide_requested)
+	# The banner parks itself above the tray, and the tray moves whenever the
+	# set aside row appears or the window changes shape.
+	_dice_tray.resized.connect(_place_banner)
 	_effects.bind_board(_board)
 	start_round(_get_ruleset())
 	_show_tutorial_once()
@@ -147,7 +150,7 @@ func _on_banked(points : int) -> void:
 	_sounds.play_bank()
 
 func _on_hot_dice() -> void:
-	_set_notice("Hot dice — all six back, and the turn keeps its points", HINT_COLOR)
+	_set_notice("Hot dice — all six back, points intact", HINT_COLOR)
 	_banner.show_hot_dice()
 	_effects.shake(BoardEffects.MEDIUM)
 	_effects.flash(ScoreBanner.HOT_COLOR, 0.16)
@@ -195,8 +198,14 @@ func _show_hint(text : String, color : Color) -> void:
 
 func _refresh() -> void:
 	_dice_tray.refresh_state(game)
+	_place_banner()
 	_refresh_buttons()
 	_refresh_hint()
+
+## Keeps the banner sitting just above the dice. The tray is inside a container
+## and the banner is not, so the only thing that can relate them is this.
+func _place_banner() -> void:
+	_banner.follow(_dice_tray)
 
 func _refresh_buttons() -> void:
 	var farkled := game.state == FarkleGame.State.FARKLED
@@ -246,7 +255,7 @@ func _refresh_hint() -> void:
 	# the player is one tap from banking.
 	if game.context.turn_score > 0:
 		_show_hint(
-			"Roll again to grow the turn, or bank it before a Farkle takes it", HINT_COLOR
+			"Roll again to grow the turn, or bank before a Farkle takes it", HINT_COLOR
 		)
 	elif game.get_scorable_dice().is_empty():
 		_show_hint("Nothing scores", HINT_COLOR)

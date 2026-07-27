@@ -38,10 +38,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 16
+theme_override_constants/margin_left = 22
 theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 20
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 26
 
 [node name="VBoxContainer" type="VBoxContainer" parent="Board"]
 layout_mode = 2
@@ -54,7 +54,7 @@ layout_mode = 2
 [node name="TopSpacer" type="Control" parent="Board/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
-size_flags_stretch_ratio = 0.55
+size_flags_stretch_ratio = 1.0
 
 [node name="DiceTray" parent="Board/VBoxContainer" instance=ExtResource("3_dicetray")]
 unique_name_in_owner = true
@@ -65,7 +65,7 @@ size_flags_vertical = 4
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.55, 0.58, 0.64, 1)
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 17
 text = "Tap the dice that score, then Take"
 horizontal_alignment = 1
 autowrap_mode = 2
@@ -73,7 +73,7 @@ autowrap_mode = 2
 [node name="BottomSpacer" type="Control" parent="Board/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
-size_flags_stretch_ratio = 1.35
+size_flags_stretch_ratio = 1.0
 
 [node name="ActionBar" type="HBoxContainer" parent="Board/VBoxContainer"]
 layout_mode = 2
@@ -81,14 +81,14 @@ theme_override_constants/separation = 8
 
 [node name="TakeButton" type="Button" parent="Board/VBoxContainer/ActionBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 74)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Take all"
 
 [node name="RollButton" type="Button" parent="Board/VBoxContainer/ActionBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 74)
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
@@ -96,7 +96,7 @@ text = "Roll again"
 
 [node name="BankButton" type="Button" parent="Board/VBoxContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 60)
+custom_minimum_size = Vector2(0, 86)
 layout_mode = 2
 disabled = true
 text = "Bank"
