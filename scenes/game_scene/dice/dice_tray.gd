@@ -11,10 +11,12 @@ extends VBoxContainer
 
 signal die_pressed(die : Die)
 
-## Dice never draw larger than this, but they shrink to fit. Six dice at full
-## size overflow a 720px portrait screen, and a later ruleset could ask for more.
-const MAX_DIE_SIZE := 88.0
-const MIN_DIE_SIZE := 34.0
+## Dice never draw larger than this, but they shrink to fit. Sized in design
+## pixels against a 540-wide viewport, which on a 1440-wide phone puts a die at
+## roughly 60dp — comfortably above the 48dp Android asks of a tap target, and
+## six of them still fit a row.
+const MAX_DIE_SIZE := 96.0
+const MIN_DIE_SIZE := 44.0
 
 @export var die_view_scene : PackedScene
 

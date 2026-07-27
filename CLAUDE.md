@@ -17,8 +17,7 @@ The first two run in CI. Note which are scenes and which are scripts: anything
 that instantiates a level has to be a scene, because the levels reach `GameState`
 on ready and the autoloads only exist when a scene is run.
 
-The main scene is `scenes/opening/opening.tscn`. Target is **720x1280 portrait**,
-renderer `gl_compatibility`.
+The main scene is `scenes/opening/opening.tscn`. Target is **540x960 portrait**, renderer `gl_compatibility`.
 
 ## The rules that hold the project together
 
@@ -48,6 +47,14 @@ that catches that.
 writes `resources/campaign.tres`, the ten `level_N.tscn` files, and the scene list
 inside `game_ui.tscn`. Hand-maintaining ten identical scenes invites exactly one
 of them to be wrong.
+
+**Sizes are in design pixels against a 540-wide viewport.** Stretch is
+`canvas_items` with aspect `expand`, so 540 scales to the device width and the
+height grows to whatever the screen is. On a 1440-wide phone that is 2.67x, which
+makes 1 design px about 0.76dp — so a 74px button lands near 56dp, comfortably
+over the 48dp Android asks of a tap target. It was 720 wide until a real device
+showed the buttons coming out at 32dp. If you shrink a control, do that maths
+first.
 
 **Difficulty numbers are measured, not guessed.** `Campaign.TARGETS` came from
 `tools/balance_probe.gd`. Rerun it after touching a target, a turn count, a bag,
