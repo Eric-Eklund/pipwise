@@ -21,8 +21,16 @@ var _game : CardDiceGame
 @onready var _hand_label : Label = %HandLabel
 @onready var _breakdown_label : Label = %BreakdownLabel
 
+## Endless mode rebinds this every round, so the previous game is released the
+## same way HandView releases a previous hand.
 func bind_game(game : CardDiceGame) -> void:
+	if _game == game:
+		return
+	if _game != null:
+		_game.progress_changed.disconnect(_refresh)
 	_game = game
+	if _game == null:
+		return
 	_game.progress_changed.connect(_refresh)
 	_objective_label.text = _game.get_objective().get_description()
 	_show_boss()

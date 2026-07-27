@@ -6,6 +6,11 @@ extends Node
 ##            --out=user://shot.png --frames=60
 ##
 ## Development tool. Nothing in the game references it.
+##
+## Good for level scenes, which stand on their own. Not good for the menus: they
+## are driven by the SceneLoader autoload, which swaps get_tree().current_scene
+## — and under this harness that is the harness itself, so the flow replaces the
+## thing taking the picture. Check menus by running the game.
 
 const DEFAULT_SCENE := "res://scenes/game_scene/levels/level_1.tscn"
 const DEFAULT_OUT := "user://screenshot.png"

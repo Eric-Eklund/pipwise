@@ -14,8 +14,17 @@ var _game : CardDiceGame
 @onready var _amount_label : Label = %AmountLabel
 @onready var _cost_label : Label = %CostLabel
 
+## Endless mode rebinds this every round, so the previous game is released the
+## same way HandView releases a previous hand.
 func bind_game(game : CardDiceGame) -> void:
+	if _game == game:
+		return
+	if _game != null:
+		_game.energy_changed.disconnect(_refresh)
+		_game.progress_changed.disconnect(_refresh)
 	_game = game
+	if _game == null:
+		return
 	_game.energy_changed.connect(_refresh)
 	_game.progress_changed.connect(_refresh)
 	_cost_label.text = "Swap %d⚡   Lock %d⚡" % [_game.swap_cost(), _game.lock_cost()]

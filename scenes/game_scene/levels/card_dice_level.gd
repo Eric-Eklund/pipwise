@@ -29,11 +29,20 @@ var game : CardDiceGame
 
 func _ready() -> void:
 	super()
-	game = CardDiceGame.new(_get_ruleset(), RngService.new(rng_seed))
-
-	_hand_view.bind_hand(game.context.hand)
 	_hand_view.card_pressed.connect(_on_card_pressed)
 	_dice_tray.die_pressed.connect(_on_die_pressed)
+	start_round(_get_ruleset())
+
+## Builds a fresh game and puts it on screen. Separate from _ready() because
+## endless mode plays round after round in the same scene, and everything here
+## has to survive being done again.
+##
+## The old CardDiceGame is a RefCounted with nothing else holding it, so its
+## signal connections die with it and do not need unhooking.
+func start_round(round_ruleset : Ruleset) -> void:
+	game = CardDiceGame.new(round_ruleset, RngService.new(rng_seed))
+
+	_hand_view.bind_hand(game.context.hand)
 	_score_hud.bind_game(game)
 	_energy_hud.bind_game(game)
 
