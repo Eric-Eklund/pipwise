@@ -49,8 +49,31 @@ static func create_element_bag(
 		definition.dice.append(elemental if i < element_count else plain)
 	return definition
 
+## A bag built from [param spec], a list of [element, count] pairs, padded out
+## to [param count] with plain dice. Two elements at three dice each is the
+## interesting case: both trios fire, and the player has to choose which one to
+## chase on any given roll.
+static func create_mixed_bag(spec : Array, count : int = 6, level : int = 1) -> BagDefinition:
+	var definition := BagDefinition.new()
+	var parts : Array[String] = []
+	for entry in spec:
+		var element : StringName = entry[0]
+		parts.append(String(element))
+		for _i in int(entry[1]):
+			if definition.dice.size() < count:
+				definition.dice.append(create_d6(element, level))
+	while definition.dice.size() < count:
+		definition.dice.append(create_basic_d6())
+	definition.id = StringName("mixed_%s" % "_".join(parts))
+	return definition
+
 ## One die of every element, in Element.ALL order. The design document's
-## "Elemental Balanced" build, and the bag the mega combos will need.
+## "Elemental Balanced" build.
+##
+## Weak in the MVP, and knowingly unused by the campaign because of it: with one
+## die per element nothing reaches a trio and nothing repeats, so the section
+## 2.1 combo ladder never leaves x1. The build only works once the section 2.3
+## mega combos exist, which is what Elemental Master is for.
 static func create_rainbow_bag(level : int = 1) -> BagDefinition:
 	var definition := BagDefinition.new()
 	definition.id = &"rainbow_bag"

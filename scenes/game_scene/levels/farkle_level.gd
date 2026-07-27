@@ -1,0 +1,249 @@
+class_name FarkleLevel
+extends Level
+## A level driven by a Ruleset.
+##
+## Owns none of the rules itself — it wires FarkleGame to the views and
+## translates the engine's outcome into the level_won/level_lost signals that
+## LevelManager duck-types onto. Designing a level means editing its Ruleset,
+## not this script.
+##
+## ## Three buttons, one at a time
+##
+## Take, Roll and Bank are always all on screen and mostly disabled, rather than
+## swapping in and out. A button that moves is a button you have to find again,
+## and this game is played with a thumb: the same three targets stay in the same
+## three places all the way through a turn, and only their labels change.
+
+## Muted grey for the always-on hint line.
+const HINT_COLOR := Color(0.55, 0.58, 0.64)
+const FARKLE_COLOR := Color(0.90, 0.44, 0.36)
+
+## Which level of the campaign this is. Every level scene sets only this; the
+## Campaign works out the rest.
+@export_range(1, 200) var level_number : int = 1
+@export var campaign : Campaign
+## Overrides the campaign entirely. Left null on the shipped levels.
+@export var ruleset : Ruleset
+## Non-zero reproduces the same rolls every run. Handy while testing.
+@export var rng_seed : int = 0
+
+## Shown once, the first time this level is reached. Only level 1 has one.
+@export var tutorial_scene : PackedScene
+## Opened by the HUD's ? button: what scores and what the elements do.
+@export var guide_scene : PackedScene
+
+var game : FarkleGame
+
+## A one-off message that outranks the standing hint until the player does
+## something. Hot dice and Farkles both announce themselves in the middle of a
+## chain of signals that ends in a refresh, so without somewhere to survive that
+## refresh the message would be written and overwritten in the same frame.
+var _notice : String = ""
+var _notice_color : Color = HINT_COLOR
+
+@onready var _dice_tray : DiceTray = %DiceTray
+@onready var _score_hud : ScoreHud = %ScoreHud
+@onready var _hint_label : Label = %HintLabel
+@onready var _take_button : Button = %TakeButton
+@onready var _roll_button : Button = %RollButton
+@onready var _bank_button : Button = %BankButton
+
+func _ready() -> void:
+	super()
+	_dice_tray.die_pressed.connect(_on_die_pressed)
+	_score_hud.guide_requested.connect(_on_guide_requested)
+	start_round(_get_ruleset())
+	_show_tutorial_once()
+
+## Builds a fresh game and puts it on screen. Separate from _ready() because
+## endless mode plays round after round in the same scene, so everything here
+## has to survive being done again.
+##
+## The old FarkleGame is a RefCounted with nothing else holding it, so its
+## signal connections die with it and do not need unhooking.
+func start_round(round_ruleset : Ruleset) -> void:
+	game = FarkleGame.new(round_ruleset, RngService.new(rng_seed))
+
+	_score_hud.bind_game(game)
+	game.dice_changed.connect(_refresh)
+	game.selection_changed.connect(_refresh)
+	game.score_changed.connect(_refresh)
+	game.rolled.connect(_on_rolled)
+	game.farkled.connect(_on_farkled)
+	game.hot_dice.connect(_on_hot_dice)
+	game.turn_started.connect(_on_turn_started)
+	game.level_won.connect(_on_level_won)
+	game.level_lost.connect(_on_level_lost)
+
+	_dice_tray.show_dice(game.get_dice())
+	game.start()
+	_refresh()
+
+## An explicit ruleset wins, then the campaign, then bare defaults — so a scene
+## dropped in with nothing configured still runs.
+func _get_ruleset() -> Ruleset:
+	if ruleset != null:
+		return ruleset
+	if campaign != null:
+		return campaign.get_ruleset(level_number)
+	return Ruleset.new()
+
+# --- input ------------------------------------------------------------------
+
+func _on_die_pressed(die : Die) -> void:
+	game.toggle_selection(die)
+
+func _on_take_button_pressed() -> void:
+	_clear_notice()
+	# Nothing marked means "take everything that scores", which is what the
+	# player wants almost every time and saves six taps when they do.
+	if game.get_selection().is_empty():
+		game.select_all_scoring()
+	game.commit_selection()
+
+func _on_roll_button_pressed() -> void:
+	# The same button acknowledges a Farkle and pushes, because in both cases it
+	# is the only thing left to do and the thumb is already there.
+	if game.state == FarkleGame.State.FARKLED:
+		_clear_notice()
+		game.continue_after_farkle()
+		return
+	_clear_notice()
+	if game.push():
+		_dice_tray.play_roll()
+
+func _on_bank_button_pressed() -> void:
+	_clear_notice()
+	game.bank()
+
+# --- feedback ---------------------------------------------------------------
+
+func _on_rolled() -> void:
+	_dice_tray.play_roll()
+
+func _on_turn_started(_turn : int) -> void:
+	_clear_notice()
+	_refresh()
+
+func _on_hot_dice() -> void:
+	_set_notice("Hot dice — all six back, and the turn keeps its points", HINT_COLOR)
+
+func _on_farkled(points_lost : int) -> void:
+	if points_lost > 0:
+		_set_notice("Farkle — %d points gone" % points_lost, FARKLE_COLOR)
+	else:
+		_set_notice("Farkle — nothing scored", FARKLE_COLOR)
+	_refresh()
+
+func _set_notice(text : String, color : Color) -> void:
+	_notice = text
+	_notice_color = color
+	_show_hint(text, color)
+
+func _clear_notice() -> void:
+	_notice = ""
+
+func _show_hint(text : String, color : Color) -> void:
+	_hint_label.text = text
+	_hint_label.add_theme_color_override(&"font_color", color)
+
+# --- buttons ----------------------------------------------------------------
+
+func _refresh() -> void:
+	_dice_tray.refresh_state(game)
+	_refresh_buttons()
+	_refresh_hint()
+
+func _refresh_buttons() -> void:
+	var farkled := game.state == FarkleGame.State.FARKLED
+
+	_take_button.disabled = farkled or not _can_take()
+	_take_button.text = _take_text()
+
+	_roll_button.disabled = not farkled and not game.can_push()
+	_roll_button.text = "Next turn" if farkled else "Roll again"
+
+	_bank_button.disabled = farkled or not game.can_bank()
+	_bank_button.text = _bank_text()
+
+## Taking is offered when something is marked, and also when nothing is marked
+## but something could be — the button takes everything in that case.
+func _can_take() -> bool:
+	if game.can_commit_selection():
+		return true
+	return game.get_selection().is_empty() and not game.get_scorable_dice().is_empty()
+
+func _take_text() -> String:
+	var score := game.selection_score
+	if score != null and score.is_valid():
+		return "Take  +%d" % score.total()
+	return "Take all"
+
+func _bank_text() -> String:
+	var requirement := game.get_bank_requirement_text()
+	if not requirement.is_empty():
+		return requirement
+	if game.context.turn_score > 0:
+		return "Bank  %d" % game.context.turn_score
+	return "Bank"
+
+## The one line under the dice. It says whatever the player most needs to know
+## right now, which changes through a turn — so it is rebuilt rather than set
+## once in the scene.
+func _refresh_hint() -> void:
+	if not _notice.is_empty():
+		_show_hint(_notice, _notice_color)
+		return
+	if game.state != FarkleGame.State.CHOOSING:
+		return
+	# Points on the table outrank everything else, because the decision they
+	# create is the only one that matters. "Nothing scores" is true of the dice
+	# left over after a take, and saying it there would read as a dead end when
+	# the player is one tap from banking.
+	if game.context.turn_score > 0:
+		_show_hint(
+			"Roll again to grow the turn, or bank it before a Farkle takes it", HINT_COLOR
+		)
+	elif game.get_scorable_dice().is_empty():
+		_show_hint("Nothing scores", HINT_COLOR)
+	else:
+		_show_hint("Tap the dice that score, then Take", HINT_COLOR)
+
+# --- windows ----------------------------------------------------------------
+
+## The guide is built from this level's own rules, so a boss's twist shows up in
+## it rather than a generic table that quietly lies.
+func _on_guide_requested() -> void:
+	if guide_scene == null:
+		return
+	var guide := guide_scene.instantiate()
+	add_child(guide)
+	guide.show_rules(game)
+
+## Opens the walkthrough the first time this level is played, then never again.
+func _show_tutorial_once() -> void:
+	if tutorial_scene == null or level_state == null or level_state.tutorial_read:
+		return
+	level_state.tutorial_read = true
+	GlobalState.save()
+	var window := tutorial_scene.instantiate()
+	add_child(window)
+
+# --- outcome ----------------------------------------------------------------
+
+func _on_level_won() -> void:
+	_record_result(true)
+	win()
+
+func _on_level_lost() -> void:
+	_record_result(false)
+	lose()
+
+## Persists the run so level select and progression have something to read.
+func _record_result(completed : bool) -> void:
+	if level_state == null:
+		return
+	level_state.best_score = maxi(level_state.best_score, game.context.banked_score)
+	if completed:
+		level_state.completed = true
+	GlobalState.save()

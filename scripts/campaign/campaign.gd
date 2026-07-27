@@ -26,10 +26,9 @@ const RULESET_DIR := "res://resources/rulesets"
 @export_range(1, 200) var level_count : int = 10
 
 @export_group("Score target")
-## Level 1's target. The design document's Novice band opens at 500.
-@export var base_target : int = 600
-## Added per level after the first.
-@export var target_step : float = 190.0
+## Fallback curve, used only past the end of the authored TARGETS table below.
+@export var base_target : int = 900
+@export var target_step : float = 300.0
 
 @export_group("Turns")
 @export_range(1, 30) var base_turns : int = 5
@@ -44,21 +43,46 @@ const RULESET_DIR := "res://resources/rulesets"
 @export var penalty_from_level : int = 6
 @export var farkle_penalty : int = 100
 
-## The elements each level hands out, as [element, how many] out of six. Levels
-## not listed are plain dice. Authored rather than computed because "which
-## element shows up when" is a teaching decision, and a formula would hide it.
+## The elements each level hands out, as a list of [element, how many] out of
+## six, padded with plain dice. Levels not listed are plain dice throughout.
+##
+## Authored rather than computed, because "which element shows up when" is a
+## teaching decision and a formula would hide it. The order is also a power
+## curve: one element, then a trio of it, then a second element, then two trios
+## at once. Every step is measurably stronger than the one before, which is what
+## lets the targets climb without a level ever feeling like a step backwards.
 const ELEMENT_SCHEDULE : Dictionary = {
-	3: [Element.FIRE, 2],
-	4: [Element.FIRE, 3],
-	5: [Element.FIRE, 4],
-	6: [Element.ICE, 3],
-	7: [Element.ICE, 4],
-	8: [Element.LIGHTNING, 3],
-	10: [Element.FIRE, 5],
+	3: [[Element.FIRE, 2]],
+	4: [[Element.FIRE, 3]],
+	5: [[Element.FIRE, 4]],
+	6: [[Element.LIGHTNING, 3]],
+	7: [[Element.ICE, 3]],
+	8: [[Element.ICE, 3], [Element.FIRE, 3]],
+	9: [[Element.ICE, 4]],
+	10: [[Element.FIRE, 5]],
 }
 
-## Levels that hand out one die of every element instead of a single element.
-const RAINBOW_LEVELS : Array[int] = [9]
+## What each level asks for, measured with tools/balance_probe.gd rather than
+## computed. The curve below is only a fallback for a level past the end of this
+## table.
+##
+## A formula cannot do this job. Every level hands out a different bag, and an
+## element changes what a turn is worth by far more than a linear step could
+## track — three Ice dice roughly double a turn on their own, because pairs
+## scoring means fewer Farkles *and* more points. Targets that ignored that
+## would make level 7 trivial and level 9 impossible.
+const TARGETS : Dictionary = {
+	1: 1900,
+	2: 2100,
+	3: 2700,
+	4: 3700,
+	5: 4600,
+	6: 5000,
+	7: 10500,
+	8: 10800,
+	9: 13000,
+	10: 2600,
+}
 
 ## The bosses, keyed by level. Kept here rather than in .tres files because a
 ## boss is two lines of data and one modifier; the .tres override still exists
@@ -88,6 +112,8 @@ func get_ruleset(level : int) -> Ruleset:
 	return build_ruleset(level)
 
 func target_for(level : int) -> int:
+	if TARGETS.has(level):
+		return int(TARGETS[level])
 	return base_target + int(round(maxi(0, level - 1) * target_step))
 
 func turns_for(level : int) -> int:
@@ -98,11 +124,8 @@ func penalty_for(level : int) -> int:
 
 ## The dice the player brings to [param level].
 func bag_for(level : int) -> BagDefinition:
-	if level in RAINBOW_LEVELS:
-		return StarterDice.create_rainbow_bag()
 	if ELEMENT_SCHEDULE.has(level):
-		var entry : Array = ELEMENT_SCHEDULE[level]
-		return StarterDice.create_element_bag(entry[0], int(entry[1]))
+		return StarterDice.create_mixed_bag(ELEMENT_SCHEDULE[level])
 	return StarterDice.create_starter_bag()
 
 func build_ruleset(level : int) -> Ruleset:

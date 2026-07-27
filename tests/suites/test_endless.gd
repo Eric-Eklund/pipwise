@@ -29,16 +29,16 @@ func test_the_farkle_penalty_grows() -> void:
 	assert_eq(_endless.penalty_for(1), _endless.base_penalty)
 	assert_true(_endless.penalty_for(10) > _endless.penalty_for(1), "pushing costs more")
 
-## Endless hands out every element from the first round. What the player gets in
-## exchange for the escalation is dice worth playing with.
-func test_every_round_hands_out_a_rainbow_bag() -> void:
+## What the player gets in exchange for the escalation is a bag worth playing
+## with: two live trios from round one. Not the rainbow bag, which reaches no
+## trio at all and would be the weakest thing in the game.
+func test_every_round_hands_out_two_trios() -> void:
 	var bag := _endless.get_ruleset(1).get_bag_definition()
-	for element in Element.ALL:
-		var found := false
-		for die_type in bag.dice:
-			if die_type.element == element:
-				found = true
-		assert_true(found, "a %s die" % element)
+	var counts : Dictionary = {}
+	for die_type in bag.dice:
+		counts[die_type.element] = int(counts.get(die_type.element, 0)) + 1
+	assert_eq(int(counts.get(Element.ICE, 0)), 3, "three Ice")
+	assert_eq(int(counts.get(Element.FIRE, 0)), 3, "three Fire")
 
 func test_a_round_is_playable() -> void:
 	for round_number in [1, 5, 20, 100]:

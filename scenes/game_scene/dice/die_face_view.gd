@@ -33,20 +33,29 @@ const PIP_LAYOUTS : Dictionary = {
 const PIP_AREA_RATIO := 0.58
 const PIP_RADIUS_RATIO := 0.095
 
-const LOCK_BADGE_COLOR := Color(0.18, 0.62, 0.34)
-const FROST_BADGE_COLOR := Color(0.32, 0.62, 0.86)
+## Green for a die already committed to the turn, amber for one the player has
+## marked but not yet taken.
+const KEPT_BADGE_COLOR := Color(0.18, 0.62, 0.34)
+const MARKED_BADGE_COLOR := Color(0.98, 0.73, 0.24)
 const BADGE_RADIUS_RATIO := 0.16
+## Thickness of the ring drawn around a marked die, as a fraction of its size.
+const MARK_RING_RATIO := 0.055
 
 var face : DieFace
 var skin : DieSkin
-## Greyed out when the player cannot afford to do anything with this die.
+## Which element to tint the body with. Element.NONE draws the plain die.
+var element : StringName = Element.NONE
+## Greyed out when this die cannot be part of a scoring selection.
 var dimmed : bool = false
-var locked : bool = false
-var frozen : bool = false
+## Already committed to the turn.
+var set_aside : bool = false
+## Marked by the player but not yet committed.
+var marked : bool = false
 
-func set_face(new_face : DieFace, new_skin : DieSkin) -> void:
+func set_face(new_face : DieFace, new_skin : DieSkin, new_element : StringName = Element.NONE) -> void:
 	face = new_face
 	skin = new_skin
+	element = new_element
 	queue_redraw()
 
 func set_dimmed(value : bool) -> void:
@@ -55,11 +64,11 @@ func set_dimmed(value : bool) -> void:
 	dimmed = value
 	queue_redraw()
 
-func set_badges(is_locked : bool, is_frozen : bool) -> void:
-	if locked == is_locked and frozen == is_frozen:
+func set_badges(is_set_aside : bool, is_marked : bool) -> void:
+	if set_aside == is_set_aside and marked == is_marked:
 		return
-	locked = is_locked
-	frozen = is_frozen
+	set_aside = is_set_aside
+	marked = is_marked
 	queue_redraw()
 
 func _draw() -> void:
@@ -73,7 +82,7 @@ func _draw() -> void:
 		_draw_badges(rect)
 		return
 
-	draw_style_box(skin.build_body_box(), rect)
+	draw_style_box(skin.build_body_box(element), rect)
 	_draw_depth_bands(rect)
 
 	if face != null:
@@ -127,15 +136,23 @@ func _draw_label(rect : Rect2) -> void:
 	)
 	draw_string(font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, ink)
 
-## A dot in the top-right corner: green for a die the player paid to keep, blue
-## for one a boss froze. Frozen wins, because it is the state the player cannot
-## do anything about.
+## A dot in the top-right corner, plus a ring around a marked die.
+##
+## Marked and set aside are drawn differently rather than in two colours of the
+## same shape, because they mean opposite things: a ring is a choice still open,
+## and a die that is only badged is one the player has already spent. Set aside
+## wins the badge when both are somehow true, since it is the state that cannot
+## be undone.
 func _draw_badges(rect : Rect2) -> void:
-	if not locked and not frozen:
+	if marked and not set_aside:
+		var width := minf(rect.size.x, rect.size.y) * MARK_RING_RATIO
+		draw_rect(rect.grow(-width * 0.5), MARKED_BADGE_COLOR, false, width)
+
+	if not set_aside and not marked:
 		return
 	var radius := minf(rect.size.x, rect.size.y) * BADGE_RADIUS_RATIO
 	var centre := rect.position + Vector2(rect.size.x - radius * 1.3, radius * 1.3)
-	draw_circle(centre, radius, FROST_BADGE_COLOR if frozen else LOCK_BADGE_COLOR)
+	draw_circle(centre, radius, KEPT_BADGE_COLOR if set_aside else MARKED_BADGE_COLOR)
 
 func _get_font() -> Font:
 	var font := get_theme_default_font()

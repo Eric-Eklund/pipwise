@@ -9,15 +9,26 @@ func before_each() -> void:
 
 # --- the curve -------------------------------------------------------------
 
-func test_the_first_level_opens_at_the_base_target() -> void:
-	assert_eq(_campaign.target_for(1), _campaign.base_target)
+## Targets are measured, not computed, so every level in the campaign has to be
+## in the table. The curve is only a fallback for a level past the end of it.
+func test_every_level_has_an_authored_target() -> void:
+	for level in range(1, _campaign.level_count + 1):
+		assert_true(Campaign.TARGETS.has(level), "level %d is measured" % level)
 
-func test_the_target_climbs_every_level() -> void:
-	for level in range(2, _campaign.level_count + 1):
-		assert_true(
-			_campaign.target_for(level) > _campaign.target_for(level - 1),
-			"level %d asks for more than %d" % [level, level - 1]
-		)
+func test_the_fallback_curve_takes_over_past_the_table() -> void:
+	assert_eq(_campaign.target_for(11), _campaign.base_target + int(10 * _campaign.target_step))
+
+## Only across the ordinary levels. A boss can and does ask for less — the Fire
+## Lord lets a fifth of the table score, so 2600 there is harder than 13000 on
+## level 9, and comparing the two numbers means nothing.
+func test_the_target_climbs_across_the_ordinary_levels() -> void:
+	var previous := 0
+	for level in range(1, _campaign.level_count + 1):
+		if Campaign.BOSSES.has(level):
+			continue
+		var target := _campaign.target_for(level)
+		assert_true(target > previous, "level %d asks for more than the last" % level)
+		previous = target
 
 func test_the_turn_count_is_cut_once_and_late() -> void:
 	assert_eq(_campaign.turns_for(1), _campaign.base_turns)
@@ -58,10 +69,22 @@ func test_a_trio_is_first_possible_on_level_four() -> void:
 	assert_true(_count_of(_campaign.bag_for(3), Element.FIRE) < 3, "not yet on 3")
 	assert_true(_count_of(_campaign.bag_for(4), Element.FIRE) >= 3, "a trio on 4")
 
-func test_the_rainbow_level_hands_out_one_of_every_element() -> void:
-	var bag := _campaign.bag_for(9)
-	for element in Element.ALL:
-		assert_eq(_count_of(bag, element), 1, "one %s die" % element)
+## Two trios at once is the most interesting bag in the MVP: both element rules
+## are live and the player has to pick which one a given roll is for.
+func test_a_late_level_hands_out_two_trios() -> void:
+	var bag := _campaign.bag_for(8)
+	assert_eq(_count_of(bag, Element.ICE), 3, "three Ice")
+	assert_eq(_count_of(bag, Element.FIRE), 3, "three Fire")
+
+## The rainbow bag reaches no trio and repeats no element, so the combo ladder
+## never leaves x1 — it is the weakest bag in the game until the mega combos
+## exist. Pinned so it does not get dropped into the campaign as an upgrade.
+func test_no_level_hands_out_the_rainbow_bag() -> void:
+	for level in range(1, _campaign.level_count + 1):
+		assert_true(
+			_elements_in(_campaign.bag_for(level)).size() <= 3,
+			"level %d does not spread itself across every element" % level
+		)
 
 func test_every_level_hands_out_six_dice() -> void:
 	for level in range(1, _campaign.level_count + 1):

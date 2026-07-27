@@ -1,6 +1,6 @@
 class_name DieView
 extends Button
-## A die the player can pay to keep.
+## A die the player can mark and take.
 ##
 ## Input and state feedback only — the face is drawn by the DieFaceView child.
 ## Rolling is a tween: the die spins through a few random faces, then settles
@@ -9,7 +9,10 @@ extends Button
 signal die_pressed(die : Die)
 
 const HELD_MODULATE := Color(1, 1, 1, 1)
-const UNAFFORDABLE_MODULATE := Color(1, 1, 1, 0.45)
+## Dice that cannot be part of a scoring selection. Faded, but nowhere near
+## invisible: seeing the 2 and the 4 that did not help is how a player learns
+## what a Farkle is, and a die whose pips have washed out teaches nothing.
+const UNAFFORDABLE_MODULATE := Color(1, 1, 1, 0.78)
 const ROLL_STEPS := 5
 const ROLL_STEP_TIME := 0.055
 const SETTLE_TIME := 0.3
@@ -61,24 +64,34 @@ func play_roll() -> void:
 		_flicker_tween.tween_callback(_show_random_face).set_delay(ROLL_STEP_TIME)
 	_flicker_tween.tween_callback(func() -> void: _show_face(die.current_face))
 
-## Greys out dice the player cannot currently afford to lock, and badges the
-## ones that are already held.
-func refresh_state(game : CardDiceGame) -> void:
+## Fades the dice that cannot be part of a scoring selection, and badges the
+## ones the player has marked or already taken.
+func refresh_state(game : FarkleGame) -> void:
 	if not is_node_ready() or die == null:
 		return
-	disabled = not game.can_toggle_lock(die)
-	modulate = UNAFFORDABLE_MODULATE if disabled and not die.is_held() else HELD_MODULATE
-	_face_view.set_badges(die.is_locked, die.is_frozen)
-	_face_view.set_dimmed(disabled and not die.is_held())
-	if die.is_frozen:
-		tooltip_text = "Frozen: this die cannot be locked or rerolled."
-	elif die.is_locked:
-		tooltip_text = "Locked. Tap to unlock and get %d energy back." % game.lock_cost()
+	var marked := game.is_selected(die)
+	var selectable := marked or game.can_select(die)
+	disabled = not selectable
+	modulate = HELD_MODULATE if selectable or die.is_set_aside else UNAFFORDABLE_MODULATE
+	_face_view.set_badges(die.is_set_aside, marked)
+	_face_view.set_dimmed(disabled and not die.is_set_aside)
+
+	if die.is_set_aside:
+		tooltip_text = "Set aside. These points are yours unless you Farkle."
+	elif marked:
+		tooltip_text = "Tap to unmark. %s" % _element_hint()
+	elif selectable:
+		tooltip_text = "Tap to mark. %s" % _element_hint()
 	else:
-		tooltip_text = "Tap to lock for %d energy." % game.lock_cost()
+		tooltip_text = "Scores nothing on its own."
+
+func _element_hint() -> String:
+	if die.element == Element.NONE:
+		return ""
+	return "%s — %s" % [die.get_element_label(), Element.get_description(die.element)]
 
 func _show_face(face : DieFace) -> void:
-	_face_view.set_face(face, skin)
+	_face_view.set_face(face, skin, die.element if die != null else Element.NONE)
 
 ## Deliberately the global RNG, not RngService — these frames are visual noise
 ## and must not consume the seeded stream the engine's determinism relies on.
@@ -86,7 +99,7 @@ func _show_random_face() -> void:
 	if die == null or die.type == null or die.type.faces.is_empty():
 		return
 	var faces := die.type.faces
-	_face_view.set_face(faces[randi() % faces.size()], skin)
+	_face_view.set_face(faces[randi() % faces.size()], skin, die.element)
 
 func _kill_tweens() -> void:
 	if _settle_tween != null and _settle_tween.is_running():

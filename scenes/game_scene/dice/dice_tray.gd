@@ -1,11 +1,13 @@
 class_name DiceTray
-extends HBoxContainer
-## Shows the dice on the table and reports which one was tapped.
+extends VBoxContainer
+## The dice on the table, in two rows: the ones still being rolled, and the ones
+## already committed to this turn.
 ##
-## The views are built once, when the dice are bound, and reused from then on.
-## The dice are the same six objects all level — throwing the nodes away on
-## every reroll would restart each roll animation from nothing and lose the
-## sense that these are physical objects being shaken again.
+## The views are built once, when the dice are bound, and reparented between the
+## rows from then on. Rebuilding them would restart every roll animation from
+## nothing and lose the sense that these are physical objects being shaken
+## again — and the dice really are the same six objects all level, so the nodes
+## should be too.
 
 signal die_pressed(die : Die)
 
@@ -15,6 +17,10 @@ const MAX_DIE_SIZE := 88.0
 const MIN_DIE_SIZE := 34.0
 
 @export var die_view_scene : PackedScene
+
+@onready var _in_play_row : HBoxContainer = %InPlayRow
+@onready var _set_aside_row : HBoxContainer = %SetAsideRow
+@onready var _set_aside_label : Label = %SetAsideLabel
 
 var _die_views : Array[DieView] = []
 
@@ -30,33 +36,49 @@ func show_dice(dice : Array[Die]) -> void:
 		return
 	for die in dice:
 		var view := die_view_scene.instantiate() as DieView
-		add_child(view)
+		_in_play_row.add_child(view)
 		view.set_die(die)
 		view.die_pressed.connect(_on_die_pressed)
 		_die_views.append(view)
 	_update_die_sizes()
 
-## Divides the available width between the dice so the row never overflows and
-## the faces stay square.
-func _update_die_sizes() -> void:
-	if _die_views.is_empty():
-		return
-	var count := _die_views.size()
-	var separation := get_theme_constant(&"separation")
-	var available := size.x - float(separation * (count - 1))
-	var extent := clampf(available / float(count), MIN_DIE_SIZE, MAX_DIE_SIZE)
-	for view in _die_views:
-		view.custom_minimum_size = Vector2(extent, extent)
-
-## Replays the roll animation. Held dice sit it out on their own.
+## Replays the roll animation. Dice already set aside sit it out on their own.
 func play_roll() -> void:
 	for view in _die_views:
 		view.play_roll()
 
-## Re-evaluates which dice are tappable against the current state.
-func refresh_state(game : CardDiceGame) -> void:
+## Re-evaluates which dice are tappable, and moves any that changed rows.
+func refresh_state(game : FarkleGame) -> void:
+	var moved := false
 	for view in _die_views:
 		view.refresh_state(game)
+		var wanted : HBoxContainer = _set_aside_row if view.die.is_set_aside else _in_play_row
+		if view.get_parent() != wanted:
+			# reparent() rather than remove + add: it keeps the node alive, so a
+			# roll tween mid-flight is not left holding a freed object.
+			view.reparent(wanted)
+			moved = true
+
+	var has_set_aside := _set_aside_row.get_child_count() > 0
+	_set_aside_row.visible = has_set_aside
+	_set_aside_label.visible = has_set_aside
+	if moved:
+		_update_die_sizes()
+
+## Divides the available width between the dice so neither row overflows and the
+## faces stay square. Sized against the fuller row, so a die does not change
+## size when it moves between them.
+func _update_die_sizes() -> void:
+	if _die_views.is_empty():
+		return
+	var count := maxi(
+		1, maxi(_in_play_row.get_child_count(), _set_aside_row.get_child_count())
+	)
+	var separation := _in_play_row.get_theme_constant(&"separation")
+	var available := size.x - float(separation * (count - 1))
+	var extent := clampf(available / float(count), MIN_DIE_SIZE, MAX_DIE_SIZE)
+	for view in _die_views:
+		view.custom_minimum_size = Vector2(extent, extent)
 
 func _on_die_pressed(die : Die) -> void:
 	die_pressed.emit(die)

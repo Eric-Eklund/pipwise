@@ -19,7 +19,21 @@ extends Resource
 
 @export_group("Ink")
 @export var ink : Color = Color(0.13, 0.14, 0.17)
-@export var disabled_ink : Color = Color(0.45, 0.46, 0.50)
+## Pips on a die that scores nothing. Muted, but still well clear of the body —
+## the value on a dead die is exactly what tells the player why the roll failed,
+## so it has to stay readable.
+@export var disabled_ink : Color = Color(0.34, 0.36, 0.40)
+
+@export_group("Elements")
+## How far an element's colour pulls the die body away from the plain one, 0 to
+## 1. Well under half on purpose: a fully saturated body drowns the pips, and
+## the value is what the player reads first. The element is a tint and a rim,
+## not a repaint.
+@export_range(0.0, 1.0) var element_tint : float = 0.34
+## How far the border is pulled towards the element colour. Stronger than the
+## body, because a rim reads as "which element" at a glance without costing any
+## contrast against the pips.
+@export_range(0.0, 1.0) var element_border_tint : float = 0.85
 
 @export_group("Art")
 ## Face id (see DieFace.id) to Texture2D. Present ids are drawn from the
@@ -32,10 +46,16 @@ func get_texture(face : DieFace) -> Texture2D:
 		return null
 	return face_textures.get(face.id, null)
 
-func build_body_box() -> StyleBoxFlat:
+## The body box for a die of [param element]. Element.NONE gets the plain one,
+## so a basic die is not a special case anywhere in the drawing code.
+func build_body_box(element : StringName = Element.NONE) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = body_color
 	box.border_color = border_color
+	if element != Element.NONE:
+		var tint := Element.get_color(element)
+		box.bg_color = body_color.lerp(tint, element_tint)
+		box.border_color = border_color.lerp(tint, element_border_tint)
 	var width := int(border_width)
 	box.border_width_left = width
 	box.border_width_top = width
