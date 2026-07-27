@@ -67,7 +67,12 @@ func _ready() -> void:
 ##     --seed=7      reproduce a particular roll
 ##     --mark=0,1    mark those dice
 ##     --take=1      commit whatever is marked, or everything that scores
+##     --farkle=800  force a Farkle that costs that many points
 ##     --guide=1     open the scoring guide
+##
+## The animations settle over about a second, so --frames decides whether a shot
+## catches the banner mid-flight or after it has faded. Around 20 frames is the
+## middle of it; the default 60 is after.
 func _drive(scene : Node, args : Dictionary) -> void:
 	var level := scene as FarkleLevel
 	if level == null or level.game == null:
@@ -80,6 +85,11 @@ func _drive(scene : Node, args : Dictionary) -> void:
 		if level.game.get_selection().is_empty():
 			level.game.select_all_scoring()
 		level.game.commit_selection()
+	if args.has("farkle"):
+		# Forced rather than rolled for, so the Farkle feedback can be looked at
+		# without hunting for a seed that produces one.
+		level.game.context.add_turn_score(int(args["farkle"]))
+		level.game._farkle()
 	if args.has("guide"):
 		var button := level.find_child("GuideButton", true, false) as Button
 		if button != null:

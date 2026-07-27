@@ -1,10 +1,13 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scenes/game_scene/levels/farkle_level.gd" id="1_level"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/hud/score_hud.tscn" id="2_scorehud"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/dice/dice_tray.tscn" id="3_dicetray"]
 [ext_resource type="Theme" path="res://resources/themes/lab.tres" id="4_theme"]
 [ext_resource type="PackedScene" path="res://scenes/windows/scoring_guide_window.tscn" id="5_guide"]
+[ext_resource type="PackedScene" path="res://scenes/game_scene/hud/score_banner.tscn" id="6_banner"]
+[ext_resource type="PackedScene" path="res://scenes/game_scene/effects/board_effects.tscn" id="7_effects"]
+[ext_resource type="PackedScene" path="res://scenes/game_scene/effects/board_sounds.tscn" id="8_sounds"]
 
 [node name="FarkleLevel" type="Control"]
 layout_mode = 3
@@ -27,7 +30,8 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.09, 0.12, 0.16, 1)
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="Board" type="MarginContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -39,25 +43,25 @@ theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 20
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="Board"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="ScoreHud" parent="MarginContainer/VBoxContainer" instance=ExtResource("2_scorehud")]
+[node name="ScoreHud" parent="Board/VBoxContainer" instance=ExtResource("2_scorehud")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
+[node name="TopSpacer" type="Control" parent="Board/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 0.55
 
-[node name="DiceTray" parent="MarginContainer/VBoxContainer" instance=ExtResource("3_dicetray")]
+[node name="DiceTray" parent="Board/VBoxContainer" instance=ExtResource("3_dicetray")]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 
-[node name="HintLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+[node name="HintLabel" type="Label" parent="Board/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.55, 0.58, 0.64, 1)
@@ -66,23 +70,23 @@ text = "Tap the dice that score, then Take"
 horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="BottomSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
+[node name="BottomSpacer" type="Control" parent="Board/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 1.35
 
-[node name="ActionBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+[node name="ActionBar" type="HBoxContainer" parent="Board/VBoxContainer"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="TakeButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
+[node name="TakeButton" type="Button" parent="Board/VBoxContainer/ActionBar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Take all"
 
-[node name="RollButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
+[node name="RollButton" type="Button" parent="Board/VBoxContainer/ActionBar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
@@ -90,13 +94,24 @@ size_flags_horizontal = 3
 disabled = true
 text = "Roll again"
 
-[node name="BankButton" type="Button" parent="MarginContainer/VBoxContainer"]
+[node name="BankButton" type="Button" parent="Board/VBoxContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 disabled = true
 text = "Bank"
 
-[connection signal="pressed" from="MarginContainer/VBoxContainer/ActionBar/TakeButton" to="." method="_on_take_button_pressed"]
-[connection signal="pressed" from="MarginContainer/VBoxContainer/ActionBar/RollButton" to="." method="_on_roll_button_pressed"]
-[connection signal="pressed" from="MarginContainer/VBoxContainer/BankButton" to="." method="_on_bank_button_pressed"]
+[node name="ScoreBanner" parent="." instance=ExtResource("6_banner")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="BoardEffects" parent="." instance=ExtResource("7_effects")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="BoardSounds" parent="." instance=ExtResource("8_sounds")]
+unique_name_in_owner = true
+
+[connection signal="pressed" from="Board/VBoxContainer/ActionBar/TakeButton" to="." method="_on_take_button_pressed"]
+[connection signal="pressed" from="Board/VBoxContainer/ActionBar/RollButton" to="." method="_on_roll_button_pressed"]
+[connection signal="pressed" from="Board/VBoxContainer/BankButton" to="." method="_on_bank_button_pressed"]

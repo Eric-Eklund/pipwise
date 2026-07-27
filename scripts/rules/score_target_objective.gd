@@ -15,10 +15,16 @@ func is_failed(context : GameContext) -> bool:
 func get_description() -> String:
 	return "Bank %d points" % target_score
 
-## Shows the projected score rather than the banked one, so the bar answers the
+## The projected score rather than the banked one, so the readout answers the
 ## question the player is actually asking mid-turn: would banking now be enough?
-func get_progress_text(context : GameContext) -> String:
-	return "%d / %d" % [context.projected_score(), target_score]
+func get_progress_value(context : GameContext) -> int:
+	return context.projected_score()
+
+func get_progress_goal() -> int:
+	return target_score
+
+func format_progress(value : int) -> String:
+	return "%d / %d" % [value, target_score]
 
 func get_progress_ratio(context : GameContext) -> float:
 	if target_score <= 0:

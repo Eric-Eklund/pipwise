@@ -47,6 +47,14 @@ func play_roll() -> void:
 	for view in _die_views:
 		view.play_roll()
 
+## Bursts the dice that were just taken. Takes the dice rather than reading the
+## pool, because by the time this is called every die in the pool looks the same
+## and only the caller knows which ones the player just chose.
+func play_take(dice : Array[Die]) -> void:
+	for view in _die_views:
+		if view.die in dice:
+			view.play_take()
+
 ## Re-evaluates which dice are tappable, and moves any that changed rows.
 func refresh_state(game : FarkleGame) -> void:
 	var moved := false
