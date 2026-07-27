@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+# One place to bump when the project moves to a new Godot release.
+env:
+  GODOT_VERSION: 4.7.0
+
+jobs:
+  test:
+    name: Engine tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          include-templates: false
+
+      - name: Import project
+        # A fresh checkout has no .godot/ cache, and the first import on an
+        # empty cache sometimes exits non-zero even when it succeeded. Give it
+        # a second attempt; a genuinely broken project still fails both.
+        run: godot --headless --import || godot --headless --import
+
+      - name: Run tests
+        # run_tests.gd extends SceneTree and calls quit(1) on failure, which is
+        # what lets this step fail the build.
+        run: godot --headless --script res://tests/run_tests.gd

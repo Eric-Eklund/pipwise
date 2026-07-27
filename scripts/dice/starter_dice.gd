@@ -30,12 +30,12 @@ static func create_starter_bag(count : int = 6) -> BagDefinition:
 
 static func _redraw() -> RedrawCardsAction:
 	var action := RedrawCardsAction.new()
-	action.description = "Discard the selected cards and draw replacements."
+	action.description = "Replace every card you have not locked."
 	return action
 
 static func _lock() -> LockCardAction:
 	var action := LockCardAction.new()
-	action.description = "Lock the selected cards so a redraw skips them."
+	action.description = "Keep the selected cards through the next redraw."
 	return action
 
 static func _draw_extra(amount : int) -> DrawExtraCardAction:
