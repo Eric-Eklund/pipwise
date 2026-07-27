@@ -44,6 +44,64 @@ func test_ruleset_falls_back_to_a_standard_deck_and_bag() -> void:
 	assert_eq(game.context.deck.total_size(), 47, "52 minus the opening hand")
 	assert_eq(game.get_pool().size(), 6)
 
+# --- which cards are carrying the hand ----------------------------------
+
+func _scoring_count(game : CardDiceGame) -> int:
+	var count := 0
+	for card in game.context.hand.cards:
+		if card.is_scoring:
+			count += 1
+	return count
+
+func test_the_carrying_cards_are_marked_from_the_start() -> void:
+	var game := _started(1000)
+	assert_true(_scoring_count(game) >= 1, "something is always carrying the hand")
+	assert_eq(_scoring_count(game), game.preview.scoring_cards.size())
+
+func test_the_marks_follow_a_swap() -> void:
+	var game := _started(1000)
+	_select_first(game, 2)
+	game.swap_selected()
+	assert_eq(
+		_scoring_count(game), game.preview.scoring_cards.size(),
+		"recomputed against the new hand"
+	)
+
+func test_a_card_that_leaves_the_hand_stops_carrying_it() -> void:
+	var game := _started(1000)
+	# Mark whatever is currently scoring, then throw it away.
+	for card in game.context.hand.cards:
+		if card.is_scoring:
+			game.context.hand.toggle_selection(card)
+	var discarded := game.context.hand.get_selected()
+	if discarded.is_empty():
+		fail("nothing was scoring to begin with")
+		return
+	game.swap_selected()
+	for card in discarded:
+		assert_false(card.is_scoring, "%s left the hand still marked" % card)
+
+func test_only_the_pair_carries_a_pair() -> void:
+	var game := _started(1000)
+	# Force a known hand: two kings and three unrelated cards.
+	game.context.hand.cards = [
+		Card.new(CardData.create(13, CardData.SPADES)),
+		Card.new(CardData.create(13, CardData.HEARTS)),
+		Card.new(CardData.create(4, CardData.DIAMONDS)),
+		Card.new(CardData.create(3, CardData.CLUBS)),
+		Card.new(CardData.create(2, CardData.SPADES)),
+	]
+	game._refresh_score()
+	assert_eq(game.preview.label, "Pair")
+	assert_eq(_scoring_count(game), 2)
+	for card in game.context.hand.cards:
+		assert_eq(card.is_scoring, card.data.rank == 13, str(card))
+
+func test_the_preview_is_kept_rather_than_recomputed() -> void:
+	var game := _started(1000)
+	assert_not_null(game.preview)
+	assert_eq(game.preview.total(), game.context.score)
+
 func test_the_score_is_live_before_anything_is_saved() -> void:
 	var game := _started(1000)
 	assert_true(game.context.score > 0, "the hand on the table is already worth something")

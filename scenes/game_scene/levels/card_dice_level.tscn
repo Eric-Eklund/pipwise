@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/game_scene/cards/card_view.tscn" id="6_cardview"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/hud/energy_hud.tscn" id="7_energyhud"]
 [ext_resource type="Theme" path="res://resources/themes/lab.tres" id="8_theme"]
+[ext_resource type="PackedScene" path="res://scenes/windows/hand_guide_window.tscn" id="9_guide"]
 
 [node name="CardDiceLevel" type="Control"]
 layout_mode = 3
@@ -18,6 +19,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme = ExtResource("8_theme")
 script = ExtResource("1_level")
+hand_guide_scene = ExtResource("9_guide")
 
 [node name="Background" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -37,13 +39,13 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 24
+theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_bottom = 20
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
 [node name="ScoreHud" parent="MarginContainer/VBoxContainer" instance=ExtResource("2_scorehud")]
 unique_name_in_owner = true
@@ -52,7 +54,45 @@ layout_mode = 2
 [node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
-size_flags_stretch_ratio = 0.35
+
+[node name="HandView" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
+alignment = 1
+script = ExtResource("5_handview")
+card_view_scene = ExtResource("6_cardview")
+
+[node name="HandNameLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "High Card  x1"
+horizontal_alignment = 1
+
+[node name="CardHintLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.64, 1)
+theme_override_font_sizes/font_size = 13
+text = "Tap cards to mark them, then Swap  ·  3⚡ each"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="MiddleSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 0.5
+
+[node name="DiceHintLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.64, 1)
+theme_override_font_sizes/font_size = 13
+text = "Dice pips are your energy — and they add to your score"
+horizontal_alignment = 1
+autowrap_mode = 2
 
 [node name="EnergyHud" parent="MarginContainer/VBoxContainer" instance=ExtResource("7_energyhud")]
 unique_name_in_owner = true
@@ -67,18 +107,18 @@ alignment = 1
 script = ExtResource("3_dicetray")
 die_view_scene = ExtResource("4_dieview")
 
+[node name="DiceLockHintLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.64, 1)
+theme_override_font_sizes/font_size = 13
+text = "Tap a die to keep it through a reroll"
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="BottomSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
-
-[node name="HandView" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-theme_override_constants/separation = 6
-alignment = 1
-script = ExtResource("5_handview")
-card_view_scene = ExtResource("6_cardview")
+size_flags_stretch_ratio = 0.28
 
 [node name="ActionBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
@@ -86,7 +126,7 @@ theme_override_constants/separation = 8
 
 [node name="SwapButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 52)
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
@@ -94,14 +134,14 @@ text = "Swap cards"
 
 [node name="RerollButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 52)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Reroll  3 left"
 
 [node name="SaveButton" type="Button" parent="MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 64)
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 text = "Save hand"
 

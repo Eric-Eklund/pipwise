@@ -70,16 +70,6 @@ func test_clear_selection_leaves_the_cards() -> void:
 	assert_eq(_hand.selected_count(), 0)
 	assert_eq(_hand.size(), 4, "clearing a selection removes nothing")
 
-func test_get_unlocked_excludes_locked_cards() -> void:
-	var cards := _cards(4)
-	_hand.add(cards)
-	cards[0].is_locked = true
-	cards[2].is_locked = true
-	var unlocked := _hand.get_unlocked()
-	assert_eq(unlocked.size(), 2)
-	assert_false(cards[0] in unlocked)
-	assert_true(cards[1] in unlocked)
-
 func test_changed_fires_on_add_and_remove() -> void:
 	var count := [0]
 	_hand.changed.connect(func() -> void: count[0] += 1)

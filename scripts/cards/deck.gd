@@ -51,7 +51,7 @@ func draw(count : int) -> Array[Card]:
 func discard(cards : Array[Card]) -> void:
 	for card in cards:
 		card.is_selected = false
-		card.is_locked = false
+		card.is_scoring = false
 		_discard_pile.append(card)
 
 func reshuffle_discard() -> void:

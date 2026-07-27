@@ -12,6 +12,7 @@ const CAMPAIGN_PATH := "res://resources/campaign.tres"
 const LEVEL_DIR := "res://scenes/game_scene/levels"
 const BASE_SCENE := "res://scenes/game_scene/levels/card_dice_level.tscn"
 const ENDLESS_SCENE := "res://scenes/game_scene/levels/endless_level.tscn"
+const TUTORIAL_SCENE := "res://scenes/windows/tutorial_window.tscn"
 const GAME_UI_PATH := "res://scenes/game_scene/game_ui.tscn"
 
 func _initialize() -> void:
@@ -64,16 +65,25 @@ func _write_scene_list(level_count : int) -> void:
 
 ## A level scene inherits the shared one and sets its number. The next-level
 ## path is left empty so LevelManager falls back to its own SceneLister.
+##
+## Level 1 also carries the walkthrough. It is the only level that does — the
+## rest would be nagging.
 func _write_level(level : int) -> void:
-	var text := """[gd_scene load_steps=3 format=3]
+	var steps := 4 if level == 1 else 3
+	var text := """[gd_scene load_steps=%d format=3]
 
 [ext_resource type="PackedScene" path="%s" id="1_base"]
 [ext_resource type="Resource" path="%s" id="2_campaign"]
-
+""" % [steps, BASE_SCENE, CAMPAIGN_PATH]
+	if level == 1:
+		text += '[ext_resource type="PackedScene" path="%s" id="3_tutorial"]\n' % TUTORIAL_SCENE
+	text += """
 [node name="Level%d" instance=ExtResource("1_base")]
 level_number = %d
 campaign = ExtResource("2_campaign")
-""" % [BASE_SCENE, CAMPAIGN_PATH, level, level]
+""" % [level, level]
+	if level == 1:
+		text += 'tutorial_scene = ExtResource("3_tutorial")\n'
 
 	var path := "%s/level_%d.tscn" % [LEVEL_DIR, level]
 	var file := FileAccess.open(path, FileAccess.WRITE)

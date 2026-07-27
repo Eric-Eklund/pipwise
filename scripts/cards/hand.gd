@@ -61,13 +61,6 @@ func get_unselected() -> Array[Card]:
 			result.append(card)
 	return result
 
-func get_unlocked() -> Array[Card]:
-	var result : Array[Card] = []
-	for card in cards:
-		if not card.is_locked:
-			result.append(card)
-	return result
-
 func selected_count() -> int:
 	return get_selected().size()
 

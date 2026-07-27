@@ -28,11 +28,11 @@ func bind_hand(hand : Hand) -> void:
 		return
 	if _hand != null:
 		_hand.changed.disconnect(_rebuild)
-		_hand.selection_changed.disconnect(_refresh_selection)
+		_hand.selection_changed.disconnect(refresh_state)
 	_hand = hand
 	if _hand != null:
 		_hand.changed.connect(_rebuild)
-		_hand.selection_changed.connect(_refresh_selection)
+		_hand.selection_changed.connect(refresh_state)
 	_rebuild()
 
 func _rebuild() -> void:
@@ -60,9 +60,17 @@ func _update_card_sizes() -> void:
 	for view in _card_views:
 		view.custom_minimum_size = Vector2(width, width * CARD_ASPECT)
 
-func _refresh_selection() -> void:
+## Redraws every card against its current state. Called on a selection change,
+## and by the level whenever the score moves — which is what changes who is
+## carrying the hand.
+func refresh_state() -> void:
 	for view in _card_views:
-		view.refresh_selection()
+		view.refresh_state()
+
+## Any one card view, for whoever needs to read the skin off it. Null before the
+## first hand is dealt.
+func get_card_view() -> CardView:
+	return _card_views[0] if not _card_views.is_empty() else null
 
 func _on_card_pressed(card : Card) -> void:
 	card_pressed.emit(card)

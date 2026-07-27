@@ -162,6 +162,103 @@ func test_a_straight_flush_is_also_a_straight_and_a_flush() -> void:
 	assert_true(PokerHandClassifier.Category.STRAIGHT in all)
 	assert_true(PokerHandClassifier.Category.FLUSH in all)
 
+# --- which cards carry the hand -----------------------------------------
+
+func _scoring(specs : Array, category : int) -> Array[Card]:
+	return PokerHandClassifier.scoring_cards(_cards(specs), category)
+
+func _ranks_of(cards : Array[Card]) -> Array[int]:
+	var ranks : Array[int] = []
+	for card in cards:
+		ranks.append(card.data.rank)
+	ranks.sort()
+	return ranks
+
+func test_a_pair_is_carried_by_two_cards() -> void:
+	var scored := _scoring(
+		[[5, S], [5, H], [9, D], [11, C], [13, S]], PokerHandClassifier.Category.PAIR
+	)
+	assert_eq(scored.size(), 2)
+	assert_eq(_ranks_of(scored), [5, 5] as Array[int])
+
+func test_a_two_pair_is_carried_by_four() -> void:
+	var scored := _scoring(
+		[[5, S], [5, H], [11, D], [11, C], [13, S]],
+		PokerHandClassifier.Category.TWO_PAIR
+	)
+	assert_eq(_ranks_of(scored), [5, 5, 11, 11] as Array[int])
+
+func test_a_three_of_a_kind_leaves_the_spare_cards_out() -> void:
+	var scored := _scoring(
+		[[8, S], [8, H], [8, D], [11, C], [13, S]],
+		PokerHandClassifier.Category.THREE_OF_A_KIND
+	)
+	assert_eq(_ranks_of(scored), [8, 8, 8] as Array[int])
+
+func test_a_four_of_a_kind_leaves_the_kicker_out() -> void:
+	var scored := _scoring(
+		[[8, S], [8, H], [8, D], [8, C], [11, S]],
+		PokerHandClassifier.Category.FOUR_OF_A_KIND
+	)
+	assert_eq(_ranks_of(scored), [8, 8, 8, 8] as Array[int])
+
+func test_a_full_house_is_carried_by_all_five() -> void:
+	var scored := _scoring(
+		[[8, S], [8, H], [8, D], [11, C], [11, S]],
+		PokerHandClassifier.Category.FULL_HOUSE
+	)
+	assert_eq(_ranks_of(scored), [8, 8, 8, 11, 11] as Array[int])
+
+func test_a_straight_is_carried_by_the_whole_hand() -> void:
+	var scored := _scoring(
+		[[5, S], [6, H], [7, D], [8, C], [9, S]], PokerHandClassifier.Category.STRAIGHT
+	)
+	assert_eq(scored.size(), 5, "the run is every card")
+
+func test_a_flush_is_carried_by_the_whole_hand() -> void:
+	var scored := _scoring(
+		[[2, H], [5, H], [9, H], [11, H], [13, H]], PokerHandClassifier.Category.FLUSH
+	)
+	assert_eq(scored.size(), 5)
+
+func test_a_high_card_is_carried_by_exactly_one() -> void:
+	var scored := _scoring(
+		[[2, S], [5, H], [9, D], [11, C], [13, S]],
+		PokerHandClassifier.Category.HIGH_CARD
+	)
+	assert_eq(scored.size(), 1)
+	assert_eq(scored[0].data.rank, 13, "the king")
+
+func test_the_high_card_counts_an_ace_as_highest() -> void:
+	var scored := _scoring(
+		[[1, S], [5, H], [9, D], [11, C], [13, S]],
+		PokerHandClassifier.Category.HIGH_CARD
+	)
+	assert_eq(scored[0].data.rank, 1, "the ace, stored as rank 1 but worth 14")
+
+## A hand can hold more than the shape needs. Framing all of it would tell the
+## player their two pair is doing work that only one pair is being paid for.
+func test_a_pair_picks_the_stronger_of_two() -> void:
+	var scored := _scoring(
+		[[5, S], [5, H], [11, D], [11, C], [13, S]], PokerHandClassifier.Category.PAIR
+	)
+	assert_eq(_ranks_of(scored), [11, 11] as Array[int], "the jacks, not the fives")
+
+func test_two_triples_make_a_full_house_of_the_stronger_and_the_weaker() -> void:
+	var scored := _scoring(
+		[[8, S], [8, H], [8, D], [11, C], [11, S], [11, H]],
+		PokerHandClassifier.Category.FULL_HOUSE
+	)
+	assert_eq(_ranks_of(scored), [8, 8, 8, 11, 11, 11] as Array[int])
+
+func test_an_empty_hand_is_carried_by_nothing() -> void:
+	var empty : Array[Card] = []
+	assert_true(
+		PokerHandClassifier.scoring_cards(
+			empty, PokerHandClassifier.Category.HIGH_CARD
+		).is_empty()
+	)
+
 func test_a_bare_pair_forms_nothing_but_a_pair_and_a_high_card() -> void:
 	var all := PokerHandClassifier.classify_all(
 		_cards([[5, S], [5, H], [9, D], [11, C], [13, S]])
