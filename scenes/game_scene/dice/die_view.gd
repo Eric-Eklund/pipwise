@@ -1,6 +1,6 @@
 class_name DieView
 extends Button
-## A die the player can spend.
+## A die the player can pay to keep.
 ##
 ## Input and state feedback only — the face is drawn by the DieFaceView child.
 ## Rolling is a tween: the die spins through a few random faces, then settles
@@ -8,7 +8,8 @@ extends Button
 
 signal die_pressed(die : Die)
 
-const SPENT_MODULATE := Color(1, 1, 1, 0.35)
+const HELD_MODULATE := Color(1, 1, 1, 1)
+const UNAFFORDABLE_MODULATE := Color(1, 1, 1, 0.45)
 const ROLL_STEPS := 5
 const ROLL_STEP_TIME := 0.055
 const SETTLE_TIME := 0.3
@@ -36,13 +37,14 @@ func set_die(new_die : Die) -> void:
 	if is_node_ready():
 		play_roll()
 
-## Spins through a few faces before landing on the rolled one.
+## Spins through a few faces before landing on the rolled one. Held dice do not
+## animate — the point of paying to keep one is that it visibly stays put.
 func play_roll() -> void:
 	if die == null:
 		return
 	_kill_tweens()
 	_show_face(die.current_face)
-	if die.type == null or die.type.faces.size() < 2:
+	if die.is_held() or die.type == null or die.type.faces.size() < 2:
 		return
 
 	rotation = START_ANGLE
@@ -59,20 +61,24 @@ func play_roll() -> void:
 		_flicker_tween.tween_callback(_show_random_face).set_delay(ROLL_STEP_TIME)
 	_flicker_tween.tween_callback(func() -> void: _show_face(die.current_face))
 
-## Greys out dice that are spent or whose action cannot run right now.
-func refresh_state(context : GameContext) -> void:
+## Greys out dice the player cannot currently afford to lock, and badges the
+## ones that are already held.
+func refresh_state(game : CardDiceGame) -> void:
 	if not is_node_ready() or die == null:
 		return
-	var action := die.get_action()
-	var usable := not die.is_spent and action != null and action.can_apply(context)
-	disabled = not usable
-	modulate = SPENT_MODULATE if die.is_spent else Color.WHITE
-	_face_view.set_dimmed(not usable)
+	disabled = not game.can_toggle_lock(die)
+	modulate = UNAFFORDABLE_MODULATE if disabled and not die.is_held() else HELD_MODULATE
+	_face_view.set_badges(die.is_locked, die.is_frozen)
+	_face_view.set_dimmed(disabled and not die.is_held())
+	if die.is_frozen:
+		tooltip_text = "Frozen: this die cannot be locked or rerolled."
+	elif die.is_locked:
+		tooltip_text = "Locked. Tap to unlock and get %d energy back." % game.lock_cost()
+	else:
+		tooltip_text = "Tap to lock for %d energy." % game.lock_cost()
 
 func _show_face(face : DieFace) -> void:
 	_face_view.set_face(face, skin)
-	var action := face.action if face != null else null
-	tooltip_text = action.description if action != null else ""
 
 ## Deliberately the global RNG, not RngService — these frames are visual noise
 ## and must not consume the seeded stream the engine's determinism relies on.
@@ -92,5 +98,5 @@ func _centre_pivot() -> void:
 	pivot_offset = size / 2.0
 
 func _on_pressed() -> void:
-	if die != null and not die.is_spent:
+	if die != null:
 		die_pressed.emit(die)

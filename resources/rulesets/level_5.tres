@@ -1,21 +1,26 @@
-[gd_resource type="Resource" script_class="Ruleset" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="Ruleset" format=3]
 
-[ext_resource type="Script" path="res://scripts/rules/ruleset.gd" id="1_ruleset"]
-[ext_resource type="Script" path="res://scripts/rules/poker_hand_evaluator.gd" id="2_poker"]
-[ext_resource type="Script" path="res://scripts/rules/score_target_objective.gd" id="3_objective"]
+[ext_resource type="Script" path="res://scripts/rules/poker_hand_evaluator.gd" id="1_evdb0"]
+[ext_resource type="Script" path="res://scripts/rules/level_modifier.gd" id="2_vanhe"]
+[ext_resource type="Script" path="res://scripts/modifiers/frozen_die_modifier.gd" id="3_8quru"]
+[ext_resource type="Script" path="res://scripts/rules/score_target_objective.gd" id="4_kqix1"]
+[ext_resource type="Script" path="res://scripts/rules/ruleset.gd" id="5_id6yh"]
 
-[sub_resource type="Resource" id="Resource_evaluator"]
-script = ExtResource("2_poker")
+[sub_resource type="Resource" id="Resource_bx7ch"]
+script = ExtResource("1_evdb0")
 
-[sub_resource type="Resource" id="Resource_objective"]
-script = ExtResource("3_objective")
-target_score = 1200
+[sub_resource type="Resource" id="Resource_3s37t"]
+script = ExtResource("3_8quru")
+
+[sub_resource type="Resource" id="Resource_wod2d"]
+script = ExtResource("4_kqix1")
+target_score = 140
 
 [resource]
-script = ExtResource("1_ruleset")
+script = ExtResource("5_id6yh")
 id = &"level_5"
-hand_size = 5
-dice_per_turn = 2
-max_plays = 4
-evaluator = SubResource("Resource_evaluator")
-objective = SubResource("Resource_objective")
+boss_name = "Frost King"
+boss_description = "One die is frozen: it cannot be locked or rerolled."
+evaluator = SubResource("Resource_bx7ch")
+objective = SubResource("Resource_wod2d")
+modifiers = Array[ExtResource("2_vanhe")]([SubResource("Resource_3s37t")])

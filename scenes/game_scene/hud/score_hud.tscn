@@ -6,30 +6,39 @@
 theme_override_constants/separation = 2
 script = ExtResource("1_scorehud")
 
+[node name="BossLabel" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Frost King"
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="ObjectiveLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "Reach 300 points"
+text = "Reach 100 points"
 horizontal_alignment = 1
 
 [node name="ProgressLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 34
-text = "0 / 300"
+text = "0 / 100"
 horizontal_alignment = 1
 
-[node name="PlaysLabel" type="Label" parent="."]
+[node name="HandLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "High Card"
+horizontal_alignment = 1
+
+[node name="BreakdownLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "Plays left: 4"
-horizontal_alignment = 1
-
-[node name="LastHandLabel" type="Label" parent="."]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = ""
+text = "(0 + 0) x1 = 0"
 horizontal_alignment = 1

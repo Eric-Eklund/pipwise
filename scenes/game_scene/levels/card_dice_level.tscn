@@ -6,6 +6,8 @@
 [ext_resource type="PackedScene" path="res://scenes/game_scene/dice/die_view.tscn" id="4_dieview"]
 [ext_resource type="Script" path="res://scenes/game_scene/cards/hand_view.gd" id="5_handview"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/cards/card_view.tscn" id="6_cardview"]
+[ext_resource type="PackedScene" path="res://scenes/game_scene/hud/energy_hud.tscn" id="7_energyhud"]
+[ext_resource type="Theme" path="res://resources/themes/lab.tres" id="8_theme"]
 
 [node name="CardDiceLevel" type="Control"]
 layout_mode = 3
@@ -14,6 +16,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("8_theme")
 script = ExtResource("1_level")
 
 [node name="Background" type="ColorRect" parent="."]
@@ -49,12 +52,17 @@ layout_mode = 2
 [node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
+size_flags_stretch_ratio = 0.35
+
+[node name="EnergyHud" parent="MarginContainer/VBoxContainer" instance=ExtResource("7_energyhud")]
+unique_name_in_owner = true
+layout_mode = 2
 
 [node name="DiceTray" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 16
+theme_override_constants/separation = 8
 alignment = 1
 script = ExtResource("3_dicetray")
 die_view_scene = ExtResource("4_dieview")
@@ -72,11 +80,31 @@ alignment = 1
 script = ExtResource("5_handview")
 card_view_scene = ExtResource("6_cardview")
 
-[node name="PlayButton" type="Button" parent="MarginContainer/VBoxContainer"]
+[node name="ActionBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SwapButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "Swap cards"
+
+[node name="RerollButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Reroll  3 left"
+
+[node name="SaveButton" type="Button" parent="MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
-disabled = true
-text = "Play"
+text = "Save hand"
 
-[connection signal="pressed" from="MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/ActionBar/SwapButton" to="." method="_on_swap_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/ActionBar/RerollButton" to="." method="_on_reroll_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/SaveButton" to="." method="_on_save_button_pressed"]

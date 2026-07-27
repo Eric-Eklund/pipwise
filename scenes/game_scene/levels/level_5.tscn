@@ -1,7 +1,8 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/game_scene/levels/card_dice_level.tscn" id="1_base"]
-[ext_resource type="Resource" path="res://resources/rulesets/level_5.tres" id="2_ruleset"]
+[ext_resource type="Resource" path="res://resources/campaign.tres" id="2_campaign"]
 
 [node name="Level5" instance=ExtResource("1_base")]
-ruleset = ExtResource("2_ruleset")
+level_number = 5
+campaign = ExtResource("2_campaign")

@@ -98,11 +98,14 @@ func _draw_centre(rect : Rect2, font : Font, ink : Color) -> void:
 	var layout : Array = PIP_LAYOUTS.get(rank, [])
 	if layout.is_empty():
 		return
+	# The pip columns clear the corner indices deliberately. At phone size a
+	# card is barely 70px wide, and a wider pip area puts the outer columns
+	# straight through the rank glyph.
 	var pip_area := Rect2(
-		rect.position + Vector2(rect.size.x * 0.26, rect.size.y * 0.17),
-		Vector2(rect.size.x * 0.48, rect.size.y * 0.66)
+		rect.position + Vector2(rect.size.x * 0.32, rect.size.y * 0.18),
+		Vector2(rect.size.x * 0.36, rect.size.y * 0.64)
 	)
-	var pip_size := maxi(8, int(rect.size.x * 0.21))
+	var pip_size := maxi(8, int(rect.size.x * 0.18))
 	for offset in layout:
 		var point : Vector2 = pip_area.position + Vector2(
 			offset.x * pip_area.size.x,

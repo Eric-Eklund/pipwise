@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/game_scene/levels/card_dice_level.tscn" id="1_base"]
+[ext_resource type="Resource" path="res://resources/campaign.tres" id="2_campaign"]
+
+[node name="Level13" instance=ExtResource("1_base")]
+level_number = 13
+campaign = ExtResource("2_campaign")

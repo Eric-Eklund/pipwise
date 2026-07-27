@@ -2,32 +2,32 @@ class_name DieFace
 extends Resource
 ## One side of a die.
 ##
-## Since dice are spent rather than scored, a face is mostly a carrier for its
-## action. The numeric value is there for rules that want it and is otherwise
-## ignored.
+## The value is the whole point of a face. The pips a die shows are both the
+## white energy the player has to spend that level and the bonus the saved hand
+## scores with, so a face needs to carry nothing else.
 
 @export var id : StringName = &"blank"
-## Short label for the face. Falls back to the action's description.
+## Short label for the face. Falls back to the value, then to the id.
 @export var display_name : String = ""
-## Numeric value, for faces that carry one.
+## Numeric value. 1-6 on the standard white die.
 @export var value : int = 0
-## Free-form markers rules can match on, so new face kinds need no schema change.
+## Free-form markers rules can match on, so new face kinds need no schema
+## change. Iteration 2's coloured dice will use these to say which energy they
+## produce.
 @export var tags : Array[StringName] = []
-## What spending a die showing this face does. Null means the face does nothing.
-@export var action : DieAction
 
-static func create(face_id : StringName, face_action : DieAction, label : String = "") -> DieFace:
+static func create(face_id : StringName, face_value : int, label : String = "") -> DieFace:
 	var face := DieFace.new()
 	face.id = face_id
-	face.action = face_action
+	face.value = face_value
 	face.display_name = label
 	return face
 
 func get_label() -> String:
 	if not display_name.is_empty():
 		return display_name
-	if action != null and not action.description.is_empty():
-		return action.description
+	if value != 0:
+		return str(value)
 	return String(id)
 
 func has_tag(tag : StringName) -> bool:

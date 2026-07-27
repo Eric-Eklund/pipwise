@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="Ruleset" format=3]
+
+[ext_resource type="Script" path="res://scripts/rules/poker_hand_evaluator.gd" id="1_rck5l"]
+[ext_resource type="Script" path="res://scripts/rules/level_modifier.gd" id="2_fmh5a"]
+[ext_resource type="Script" path="res://scripts/modifiers/minimum_locks_modifier.gd" id="3_ryemo"]
+[ext_resource type="Script" path="res://scripts/rules/score_target_objective.gd" id="4_wj1ij"]
+[ext_resource type="Script" path="res://scripts/rules/ruleset.gd" id="5_052ac"]
+
+[sub_resource type="Resource" id="Resource_p7n02"]
+script = ExtResource("1_rck5l")
+
+[sub_resource type="Resource" id="Resource_wkrvy"]
+script = ExtResource("3_ryemo")
+
+[sub_resource type="Resource" id="Resource_iwlkp"]
+script = ExtResource("4_wj1ij")
+target_score = 130
+
+[resource]
+script = ExtResource("5_052ac")
+id = &"level_10"
+boss_name = "The Gambler"
+boss_description = "Lock at least 2 dice before you can save your hand."
+evaluator = SubResource("Resource_p7n02")
+objective = SubResource("Resource_iwlkp")
+modifiers = Array[ExtResource("2_fmh5a")]([SubResource("Resource_wkrvy")])
