@@ -1,14 +1,24 @@
-[gd_scene format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/game_scene/dice/die_view.gd" id="1_dieview"]
+[ext_resource type="Script" path="res://scenes/game_scene/dice/die_face_view.gd" id="2_diefaceview"]
+[ext_resource type="Resource" path="res://resources/skins/default_die_skin.tres" id="3_skin"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_blank"]
 
 [node name="DieView" type="Button"]
 custom_minimum_size = Vector2(96, 96)
 size_flags_horizontal = 4
 size_flags_vertical = 4
+theme_override_styles/normal = SubResource("StyleBoxEmpty_blank")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_blank")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_blank")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_blank")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_blank")
 script = ExtResource("1_dieview")
+skin = ExtResource("3_skin")
 
-[node name="FaceLabel" type="Label" parent="."]
+[node name="DieFaceView" type="Control" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -17,8 +27,4 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 18
-text = "Redraw"
-horizontal_alignment = 1
-vertical_alignment = 1
-autowrap_mode = 2
+script = ExtResource("2_diefaceview")

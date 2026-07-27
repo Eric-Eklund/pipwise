@@ -8,10 +8,20 @@ extends HBoxContainer
 
 signal card_pressed(card : Card)
 
+## Cards never draw larger than this, but they shrink to fit. DrawExtraCardAction
+## widens the hand permanently, and eight cards at full width overflow a 720px
+## portrait screen.
+const MAX_CARD_WIDTH := 104.0
+const MIN_CARD_WIDTH := 40.0
+const CARD_ASPECT := 148.0 / 104.0
+
 @export var card_view_scene : PackedScene
 
 var _hand : Hand
 var _card_views : Array[CardView] = []
+
+func _ready() -> void:
+	resized.connect(_update_card_sizes)
 
 func bind_hand(hand : Hand) -> void:
 	if _hand == hand:
@@ -37,6 +47,18 @@ func _rebuild() -> void:
 		view.set_card(card)
 		view.card_pressed.connect(_on_card_pressed)
 		_card_views.append(view)
+	_update_card_sizes()
+
+## Divides the available width between the cards so the row never overflows.
+func _update_card_sizes() -> void:
+	if _card_views.is_empty():
+		return
+	var count := _card_views.size()
+	var separation := get_theme_constant(&"separation")
+	var available := size.x - float(separation * (count - 1))
+	var width := clampf(available / float(count), MIN_CARD_WIDTH, MAX_CARD_WIDTH)
+	for view in _card_views:
+		view.custom_minimum_size = Vector2(width, width * CARD_ASPECT)
 
 func _refresh_selection() -> void:
 	for view in _card_views:
