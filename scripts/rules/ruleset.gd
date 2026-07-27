@@ -8,6 +8,13 @@ extends Resource
 
 @export var id : StringName = &"untitled"
 
+@export_group("Presentation")
+## Named on the boss banner. Empty on an ordinary level, which is what the HUD
+## keys off to decide whether there is a banner at all.
+@export var boss_name : String = ""
+## One line explaining the twist, e.g. "One die is frozen".
+@export_multiline var boss_description : String = ""
+
 @export_group("Content")
 @export var deck_definition : DeckDefinition
 @export var bag_definition : BagDefinition

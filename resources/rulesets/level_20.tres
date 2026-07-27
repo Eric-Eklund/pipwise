@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="Ruleset" format=3]
+
+[ext_resource type="Script" path="res://scripts/rules/poker_hand_evaluator.gd" id="1_tb3co"]
+[ext_resource type="Script" path="res://scripts/rules/level_modifier.gd" id="2_58osv"]
+[ext_resource type="Script" path="res://scripts/rules/score_target_objective.gd" id="3_etcvp"]
+[ext_resource type="Script" path="res://scripts/rules/ruleset.gd" id="4_543y1"]
+
+[sub_resource type="Resource" id="Resource_xi8ec"]
+script = ExtResource("1_tb3co")
+
+[sub_resource type="Resource" id="Resource_b1rpd"]
+script = ExtResource("3_etcvp")
+target_score = 105
+
+[resource]
+script = ExtResource("4_543y1")
+id = &"level_20"
+boss_name = "Short Deck"
+boss_description = "Four cards only — no room for a straight or a flush."
+hand_size = 4
+evaluator = SubResource("Resource_xi8ec")
+objective = SubResource("Resource_b1rpd")

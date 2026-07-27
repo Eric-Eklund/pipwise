@@ -14,9 +14,10 @@ extends SceneTree
 ## multiplier, a cost, or the number of dice — all three move the whole curve.
 
 const RUNS := 400
+const LEVELS : Array[int] = [1, 2, 3, 4, 5, 10, 15, 20, 25]
 
 func _initialize() -> void:
-	for level in range(1, 6):
+	for level in LEVELS:
 		var ruleset : Ruleset = load("res://resources/rulesets/level_%d.tres" % level)
 		var target : int = ruleset.get_objective().target_score
 		var wins := 0
@@ -29,18 +30,21 @@ func _initialize() -> void:
 			if game.state == CardDiceGame.State.WON:
 				wins += 1
 		totals.sort()
-		print("level %d  target %4d   win %5.1f%%" % [level, target, 100.0 * wins / RUNS])
-		if level == 1:
-			# One distribution serves every level: the levels differ only in
-			# their target, so the score spread is the same curve each time.
-			var line := "  score at each win rate: "
-			for rate in [90, 80, 70, 60, 50, 40, 30, 20]:
-				line += "%d%%=%d  " % [rate, totals[RUNS * (100 - rate) / 100]]
-			print(line)
+		var boss := "" if ruleset.boss_name.is_empty() else "  [%s]" % ruleset.boss_name
+		print("level %-2d  target %4d   win %5.1f%%%s" % [
+			level, target, 100.0 * wins / RUNS, boss
+		])
+		# What target would land on each win rate, so a level can be retuned
+		# by reading a number off instead of guessing and rerunning.
+		var line := "         would need: "
+		for rate in [80, 70, 60, 50, 40, 30]:
+			line += "%d%%=%d  " % [rate, totals[RUNS * (100 - rate) / 100]]
+		print(line)
 	quit(0)
 
-## Reroll while it helps, then swap the weakest cards that are not part of a
-## pair. Deliberately unsophisticated — this is a floor, not a ceiling.
+## Reroll while it helps, pay off whatever the boss demands, then spend what is
+## left swapping the weakest cards that are not part of a matched rank.
+## Deliberately unsophisticated — this is a floor, not a ceiling.
 func _play_greedily(game : CardDiceGame) -> void:
 	for _i in 3:
 		if not game.can_reroll():
@@ -49,6 +53,12 @@ func _play_greedily(game : CardDiceGame) -> void:
 		game.reroll()
 		if game.context.total_energy() < before:
 			break
+
+	# Mandatory locks come out of the budget before any of it is spent on
+	# cards. Swapping first and discovering the locks are unaffordable is how a
+	# player loses a level to bookkeeping rather than to the dice.
+	_satisfy_save_requirements(game)
+
 	for _round in 4:
 		var junk := _unpaired_cards(game)
 		if junk.is_empty():
@@ -63,7 +73,23 @@ func _play_greedily(game : CardDiceGame) -> void:
 		if marked == 0 or not game.swap_selected():
 			break
 	game.context.hand.clear_selection()
+
+	# A reroll during the swaps could in principle have moved the requirement,
+	# so check once more before committing.
+	_satisfy_save_requirements(game)
 	game.save_hand()
+
+## Locks dice until the level will accept the hand. Gives up rather than
+## looping if nothing can be locked, which shows up as a loss.
+func _satisfy_save_requirements(game : CardDiceGame) -> void:
+	while not game.can_save_hand():
+		var locked := false
+		for die in game.get_dice():
+			if not die.is_locked and game.toggle_lock(die):
+				locked = true
+				break
+		if not locked:
+			return
 
 ## The cards not contributing to any matched rank, lowest value first.
 func _unpaired_cards(game : CardDiceGame) -> Array[Card]:

@@ -13,11 +13,11 @@ extends Resource
 ##
 ## Not abstract: every hook has a harmless default, so a modifier only overrides
 ## the one or two it actually cares about.
-
-## Shown on the boss banner.
-@export var display_name : String = ""
-## One line explaining the twist, e.g. "One die is frozen".
-@export var description : String = ""
+##
+## A modifier carries no name or description. What the boss is called belongs to
+## the Ruleset, because Short Deck is a boss with no modifier at all — it is
+## just a smaller hand — and identity that lives on the modifier would leave
+## that level unlabelled.
 
 ## Writes the modifier's effect into the level: freeze dice, ban categories,
 ## grant category bonuses. Called once, after the opening roll, so that
