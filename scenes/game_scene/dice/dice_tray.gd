@@ -9,9 +9,17 @@ extends HBoxContainer
 
 signal die_pressed(die : Die)
 
+## Dice never draw larger than this, but they shrink to fit. Six dice at full
+## size overflow a 720px portrait screen, and a later ruleset could ask for more.
+const MAX_DIE_SIZE := 88.0
+const MIN_DIE_SIZE := 34.0
+
 @export var die_view_scene : PackedScene
 
 var _die_views : Array[DieView] = []
+
+func _ready() -> void:
+	resized.connect(_update_die_sizes)
 
 ## Builds one view per die. Call once per level.
 func show_dice(dice : Array[Die]) -> void:
@@ -26,6 +34,19 @@ func show_dice(dice : Array[Die]) -> void:
 		view.set_die(die)
 		view.die_pressed.connect(_on_die_pressed)
 		_die_views.append(view)
+	_update_die_sizes()
+
+## Divides the available width between the dice so the row never overflows and
+## the faces stay square.
+func _update_die_sizes() -> void:
+	if _die_views.is_empty():
+		return
+	var count := _die_views.size()
+	var separation := get_theme_constant(&"separation")
+	var available := size.x - float(separation * (count - 1))
+	var extent := clampf(available / float(count), MIN_DIE_SIZE, MAX_DIE_SIZE)
+	for view in _die_views:
+		view.custom_minimum_size = Vector2(extent, extent)
 
 ## Replays the roll animation. Held dice sit it out on their own.
 func play_roll() -> void:

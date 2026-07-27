@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scenes/game_scene/cards/hand_view.gd" id="5_handview"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/cards/card_view.tscn" id="6_cardview"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/hud/energy_hud.tscn" id="7_energyhud"]
+[ext_resource type="Theme" path="res://resources/themes/lab.tres" id="8_theme"]
 
 [node name="CardDiceLevel" type="Control"]
 layout_mode = 3
@@ -15,6 +16,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("8_theme")
 script = ExtResource("1_level")
 
 [node name="Background" type="ColorRect" parent="."]
@@ -50,6 +52,7 @@ layout_mode = 2
 [node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
+size_flags_stretch_ratio = 0.35
 
 [node name="EnergyHud" parent="MarginContainer/VBoxContainer" instance=ExtResource("7_energyhud")]
 unique_name_in_owner = true
