@@ -9,13 +9,15 @@ script = ExtResource("2_poker")
 
 [sub_resource type="Resource" id="Resource_objective"]
 script = ExtResource("3_objective")
-target_score = 650
+target_score = 110
 
 [resource]
 script = ExtResource("1_ruleset")
 id = &"level_3"
 hand_size = 5
-dice_per_turn = 2
-max_plays = 4
+dice_count = 6
+max_rerolls = 3
+card_swap_cost = 3
+die_lock_cost = 4
 evaluator = SubResource("Resource_evaluator")
 objective = SubResource("Resource_objective")

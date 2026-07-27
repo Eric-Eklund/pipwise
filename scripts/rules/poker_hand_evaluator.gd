@@ -1,142 +1,73 @@
 class_name PokerHandEvaluator
 extends HandEvaluator
-## Scores a play as a poker hand: category points plus the cards' own values,
-## times whatever multiplier the dice have built up.
+## Prices a hand: everything on the table added up, times what the cards are
+## worth as poker.
 ##
-## Poker is a starting point, not a commitment. It is familiar and already
-## balanced against a 52-card deck, which makes it a good default while the
-## real ruleset is still being found. Swapping it out means writing another
-## HandEvaluator and pointing the Ruleset at it.
+##     (sum of card values + sum of dice pips) x hand multiplier
+##
+## The dice count twice by design. The same pips the player spends as white
+## energy also ride along into the score, so swapping a card costs tempo and
+## options rather than points — which is what keeps a 15-second round about
+## choosing, not about hoarding.
+##
+## The shapes themselves live in PokerHandClassifier. This class only decides
+## what each shape is worth.
 
-enum Category {
-	HIGH_CARD,
-	PAIR,
-	TWO_PAIR,
-	THREE_OF_A_KIND,
-	STRAIGHT,
-	FLUSH,
-	FULL_HOUSE,
-	FOUR_OF_A_KIND,
-	STRAIGHT_FLUSH,
-}
+@export_group("Multipliers")
+@export var high_card_multiplier : float = 1.0
+@export var pair_multiplier : float = 2.0
+@export var two_pair_multiplier : float = 3.0
+@export var three_of_a_kind_multiplier : float = 4.0
+@export var straight_multiplier : float = 5.0
+@export var flush_multiplier : float = 6.0
+@export var full_house_multiplier : float = 8.0
+## Absent from the design spec. Placed between the full house and the straight
+## flush so that quads keep beating a full house, as they do in poker.
+@export var four_of_a_kind_multiplier : float = 9.0
+@export var straight_flush_multiplier : float = 10.0
 
-const CATEGORY_NAMES : Dictionary = {
-	Category.HIGH_CARD: "High Card",
-	Category.PAIR: "Pair",
-	Category.TWO_PAIR: "Two Pair",
-	Category.THREE_OF_A_KIND: "Three of a Kind",
-	Category.STRAIGHT: "Straight",
-	Category.FLUSH: "Flush",
-	Category.FULL_HOUSE: "Full House",
-	Category.FOUR_OF_A_KIND: "Four of a Kind",
-	Category.STRAIGHT_FLUSH: "Straight Flush",
-}
-
-@export var high_card_points : int = 5
-@export var pair_points : int = 10
-@export var two_pair_points : int = 20
-@export var three_of_a_kind_points : int = 30
-@export var straight_points : int = 40
-@export var flush_points : int = 50
-@export var full_house_points : int = 60
-@export var four_of_a_kind_points : int = 80
-@export var straight_flush_points : int = 120
-
+@export_group("Shape")
 ## Straights and flushes need this many cards. Below it they cannot form.
 @export_range(3, 7) var run_length : int = 5
+## Hands smaller than this cannot be saved at all.
+@export_range(1, 7) var minimum_cards : int = 1
+
+func is_valid_play(cards : Array[Card]) -> bool:
+	return cards.size() >= minimum_cards
 
 func evaluate(cards : Array[Card], context : GameContext) -> HandScore:
 	if cards.is_empty():
 		return HandScore.new()
-	var category := classify(cards)
-	var base := points_for(category) + _card_value_sum(cards)
-	return HandScore.new(base, context.score_multiplier, String(CATEGORY_NAMES[category]))
+	var category := best_allowed_category(cards, context)
+	var multiplier := multiplier_for(category) \
+		* (1.0 + context.multiplier_bonus_for(category)) \
+		* context.score_multiplier
+	return HandScore.new(
+		PokerHandClassifier.card_value_sum(cards),
+		context.total_energy(),
+		multiplier,
+		PokerHandClassifier.category_name(category),
+		category
+	)
 
-func points_for(category : Category) -> int:
+## The best shape the hand forms that a boss has not ruled out. A banned pair
+## falls back to high card rather than making the hand unplayable — a level the
+## player cannot score at all is a bug, not a difficulty setting.
+func best_allowed_category(cards : Array[Card], context : GameContext) -> int:
+	var categories := PokerHandClassifier.classify_all(cards, run_length)
+	for category in categories:
+		if not context.is_category_banned(category):
+			return category
+	return PokerHandClassifier.Category.HIGH_CARD
+
+func multiplier_for(category : int) -> float:
 	match category:
-		Category.PAIR: return pair_points
-		Category.TWO_PAIR: return two_pair_points
-		Category.THREE_OF_A_KIND: return three_of_a_kind_points
-		Category.STRAIGHT: return straight_points
-		Category.FLUSH: return flush_points
-		Category.FULL_HOUSE: return full_house_points
-		Category.FOUR_OF_A_KIND: return four_of_a_kind_points
-		Category.STRAIGHT_FLUSH: return straight_flush_points
-		_: return high_card_points
-
-func classify(cards : Array[Card]) -> Category:
-	if cards.is_empty():
-		return Category.HIGH_CARD
-
-	var rank_counts : Dictionary = {}
-	var suits : Dictionary = {}
-	var ranks : Array[int] = []
-	for card in cards:
-		var rank := card.data.rank
-		rank_counts[rank] = int(rank_counts.get(rank, 0)) + 1
-		suits[card.data.suit] = true
-		ranks.append(rank)
-
-	var counts : Array[int] = []
-	for rank in rank_counts:
-		counts.append(int(rank_counts[rank]))
-	counts.sort()
-	counts.reverse()
-
-	var flush := suits.size() == 1 and cards.size() >= run_length
-	var straight := _is_straight(ranks)
-
-	if flush and straight:
-		return Category.STRAIGHT_FLUSH
-	if counts[0] >= 4:
-		return Category.FOUR_OF_A_KIND
-	if counts[0] == 3 and counts.size() > 1 and counts[1] >= 2:
-		return Category.FULL_HOUSE
-	if flush:
-		return Category.FLUSH
-	if straight:
-		return Category.STRAIGHT
-	if counts[0] == 3:
-		return Category.THREE_OF_A_KIND
-	if counts[0] == 2 and counts.size() > 1 and counts[1] == 2:
-		return Category.TWO_PAIR
-	if counts[0] == 2:
-		return Category.PAIR
-	return Category.HIGH_CARD
-
-## Aces count high or low, so both A-2-3-4-5 and 10-J-Q-K-A are runs.
-func _is_straight(ranks : Array[int]) -> bool:
-	if ranks.size() < run_length:
-		return false
-	var unique : Array[int] = []
-	for rank in ranks:
-		if rank not in unique:
-			unique.append(rank)
-	# Any duplicate rank means the cards cannot all be part of one run.
-	if unique.size() != ranks.size():
-		return false
-	if _is_consecutive(unique):
-		return true
-	if 1 in unique:
-		var ace_high := unique.duplicate()
-		ace_high[ace_high.find(1)] = 14
-		return _is_consecutive(ace_high)
-	return false
-
-func _is_consecutive(values : Array) -> bool:
-	var sorted_values := values.duplicate()
-	sorted_values.sort()
-	return sorted_values[sorted_values.size() - 1] - sorted_values[0] == sorted_values.size() - 1
-
-## Face cards are worth 10, aces 11, everything else its pip count.
-func _card_value_sum(cards : Array[Card]) -> int:
-	var sum := 0
-	for card in cards:
-		var rank := card.data.rank
-		if rank == 1:
-			sum += 11
-		elif rank > 10:
-			sum += 10
-		else:
-			sum += rank
-	return sum
+		PokerHandClassifier.Category.PAIR: return pair_multiplier
+		PokerHandClassifier.Category.TWO_PAIR: return two_pair_multiplier
+		PokerHandClassifier.Category.THREE_OF_A_KIND: return three_of_a_kind_multiplier
+		PokerHandClassifier.Category.STRAIGHT: return straight_multiplier
+		PokerHandClassifier.Category.FLUSH: return flush_multiplier
+		PokerHandClassifier.Category.FULL_HOUSE: return full_house_multiplier
+		PokerHandClassifier.Category.FOUR_OF_A_KIND: return four_of_a_kind_multiplier
+		PokerHandClassifier.Category.STRAIGHT_FLUSH: return straight_flush_multiplier
+		_: return high_card_multiplier

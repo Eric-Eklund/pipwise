@@ -1,9 +1,11 @@
 class_name DiceTray
 extends HBoxContainer
-## Shows the dice drawn for this turn and reports which one was tapped.
+## Shows the dice on the table and reports which one was tapped.
 ##
-## Unlike HandView this is driven explicitly rather than by signals: the drawn
-## dice are a plain array the level owns, not an object that emits changes.
+## The views are built once, when the dice are bound, and reused from then on.
+## The dice are the same six objects all level — throwing the nodes away on
+## every reroll would restart each roll animation from nothing and lose the
+## sense that these are physical objects being shaken again.
 
 signal die_pressed(die : Die)
 
@@ -11,6 +13,7 @@ signal die_pressed(die : Die)
 
 var _die_views : Array[DieView] = []
 
+## Builds one view per die. Call once per level.
 func show_dice(dice : Array[Die]) -> void:
 	for view in _die_views:
 		view.queue_free()
@@ -24,10 +27,15 @@ func show_dice(dice : Array[Die]) -> void:
 		view.die_pressed.connect(_on_die_pressed)
 		_die_views.append(view)
 
-## Re-evaluates which dice are usable against the current state.
-func refresh_state(context : GameContext) -> void:
+## Replays the roll animation. Held dice sit it out on their own.
+func play_roll() -> void:
 	for view in _die_views:
-		view.refresh_state(context)
+		view.play_roll()
+
+## Re-evaluates which dice are tappable against the current state.
+func refresh_state(game : CardDiceGame) -> void:
+	for view in _die_views:
+		view.refresh_state(game)
 
 func _on_die_pressed(die : Die) -> void:
 	die_pressed.emit(die)
