@@ -12,21 +12,31 @@ var level_paths : Array[String]
 
 func _ready() -> void:
 	add_levels_to_container()
-	
-## A fresh level list is propgated into the ItemList, and the file names are cleaned
+
+## A fresh level list is propagated into the ItemList, and the file names cleaned.
 func add_levels_to_container() -> void:
 	level_buttons_container.clear()
 	level_paths.clear()
 	var game_state := GameState.get_or_create_state()
-	for file_path in game_state.level_states.keys():
-		var file_name : String = file_path.get_file()  # e.g., "level_1.tscn"
-		file_name = file_name.trim_suffix(".tscn")  # Remove the ".tscn" extension
-		file_name = file_name.replace("_", " ")  # Replace underscores with spaces
-		file_name = file_name.capitalize()  # Convert to proper case
-		var button_name := str(file_name)
-		level_buttons_container.add_item(button_name)
+	# level_states is keyed in the order levels were first reached, which is not
+	# guaranteed to be campaign order. Sorting by path restores it, which holds
+	# as long as level files stay single-digit — level_10 would sort before
+	# level_2.
+	var paths : Array = game_state.level_states.keys()
+	paths.sort()
+	for entry in paths:
+		var file_path := String(entry)
+		var display_name := file_path.get_file().trim_suffix(".tscn")
+		display_name = display_name.replace("_", " ").capitalize()
+		level_buttons_container.add_item(display_name)
 		level_paths.append(file_path)
 
 func _on_level_buttons_container_item_activated(index: int) -> void:
 	GameState.set_checkpoint_level_path(level_paths[index])
 	level_selected.emit()
+
+## MainMenu._open_sub_menu() connects this menu's `hidden` signal to its own
+## close handler, so hiding is all it takes to go back. Needed on Android,
+## where there is no Escape key to trigger ui_cancel.
+func _on_back_button_pressed() -> void:
+	hide()

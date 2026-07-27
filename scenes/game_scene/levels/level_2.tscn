@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/game_scene/levels/card_dice_level.tscn" id="1_base"]
+[ext_resource type="Resource" path="res://resources/rulesets/level_2.tres" id="2_ruleset"]
+
+[node name="Level2" instance=ExtResource("1_base")]
+ruleset = ExtResource("2_ruleset")
