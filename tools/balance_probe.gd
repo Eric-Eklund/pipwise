@@ -14,11 +14,11 @@ extends SceneTree
 ## multiplier, a cost, or the number of dice — all three move the whole curve.
 
 const RUNS := 400
-const LEVELS : Array[int] = [1, 2, 3, 4, 5, 10, 15, 20, 25]
 
 func _initialize() -> void:
-	for level in LEVELS:
-		var ruleset : Ruleset = load("res://resources/rulesets/level_%d.tres" % level)
+	var campaign : Campaign = load("res://resources/campaign.tres")
+	for level in range(1, campaign.level_count + 1):
+		var ruleset := campaign.get_ruleset(level)
 		var target : int = ruleset.get_objective().target_score
 		var wins := 0
 		var totals : Array[int] = []
@@ -30,16 +30,26 @@ func _initialize() -> void:
 			if game.state == CardDiceGame.State.WON:
 				wins += 1
 		totals.sort()
-		var boss := "" if ruleset.boss_name.is_empty() else "  [%s]" % ruleset.boss_name
-		print("level %-2d  target %4d   win %5.1f%%%s" % [
-			level, target, 100.0 * wins / RUNS, boss
+		var notes : Array[String] = []
+		if not ruleset.boss_name.is_empty():
+			notes.append(ruleset.boss_name)
+		if ruleset.max_rerolls != 3:
+			notes.append("%d reroll%s" % [
+				ruleset.max_rerolls, "" if ruleset.max_rerolls == 1 else "s"
+			])
+		if ruleset.dice_count != 6:
+			notes.append("%d dice" % ruleset.dice_count)
+		if ruleset.hand_size != 5:
+			notes.append("%d cards" % ruleset.hand_size)
+		var objective := ruleset.get_objective()
+		if objective is RequiredCategoryObjective:
+			notes.append("needs %s" % PokerHandClassifier.category_name(
+				(objective as RequiredCategoryObjective).minimum_category
+			))
+		print("level %-2d  target %4d   win %5.1f%%   median %4d%s" % [
+			level, target, 100.0 * wins / RUNS, totals[RUNS / 2],
+			"" if notes.is_empty() else "   [%s]" % ", ".join(notes),
 		])
-		# What target would land on each win rate, so a level can be retuned
-		# by reading a number off instead of guessing and rerunning.
-		var line := "         would need: "
-		for rate in [80, 70, 60, 50, 40, 30]:
-			line += "%d%%=%d  " % [rate, totals[RUNS * (100 - rate) / 100]]
-		print(line)
 	quit(0)
 
 ## Reroll while it helps, pay off whatever the boss demands, then spend what is

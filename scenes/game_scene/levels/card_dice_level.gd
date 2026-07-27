@@ -7,6 +7,12 @@ extends Level
 ## LevelManager duck-types onto. Designing a level means editing its Ruleset
 ## resource, not this script.
 
+## Which level of the campaign this is. Every level scene sets only this; the
+## Campaign works out the rest, and hands over an authored ruleset for the
+## levels that have one.
+@export_range(1, 200) var level_number : int = 1
+@export var campaign : Campaign
+## Overrides the campaign entirely. Left null on the shipped levels.
 @export var ruleset : Ruleset
 ## Non-zero reproduces the same shuffle and rolls every run. Handy while testing.
 @export var rng_seed : int = 0
@@ -44,9 +50,14 @@ func _ready() -> void:
 	_dice_tray.show_dice(game.get_dice())
 	game.start()
 
-## Falls back to defaults so the level still runs before a Ruleset is authored.
+## An explicit ruleset wins, then the campaign, then bare defaults — so the
+## level still runs even if a scene is dropped in with nothing configured.
 func _get_ruleset() -> Ruleset:
-	return ruleset if ruleset != null else Ruleset.new()
+	if ruleset != null:
+		return ruleset
+	if campaign != null:
+		return campaign.get_ruleset(level_number)
+	return Ruleset.new()
 
 func _on_dice_changed() -> void:
 	_refresh_interactables()

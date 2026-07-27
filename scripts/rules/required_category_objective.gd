@@ -18,8 +18,8 @@ func get_description() -> String:
 		target_score, PokerHandClassifier.category_name(minimum_category)
 	]
 
+## Just the numbers. The shape the level wants is already spelled out in
+## get_description(), which the HUD prints directly above this, and repeating it
+## here overflows the line the score is set in.
 func get_progress_text(context : GameContext) -> String:
-	var text := "%d / %d" % [context.score, target_score]
-	if context.current_category < minimum_category:
-		text += "   need %s" % PokerHandClassifier.category_name(minimum_category)
-	return text
+	return "%d / %d" % [context.score, target_score]
