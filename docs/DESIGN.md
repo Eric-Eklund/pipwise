@@ -1,0 +1,432 @@
+# Pipwise: Dice & Elements — design specification
+
+A Farkle-inspired dice game with a fantasy theme. Every die carries two
+dimensions — a value and an element — and the player builds rogue-lite
+strategies on top of them through card support and progression.
+
+- **Platform:** Android (Godot)
+- **Genre:** Farkle core + rogue-lite + fantasy
+- **Core cycle:** roll → score → element combos → cast spells → push your luck
+- **Session length:** 2-5 minutes per run, endless levels
+
+> Transcribed from the authored design document. Tables have been reflowed for
+> readability; no numbers were changed. Where the build deviates from this
+> document, the deviation is recorded in [Deviations](#deviations-and-open-questions)
+> at the bottom rather than silently applied here.
+
+---
+
+## 1. Dice
+
+### 1.1 Two dimensions per die
+
+Every die has three attributes:
+
+| Attribute | Description | Values |
+| --- | --- | --- |
+| Value | The faces | 1-6, expandable |
+| Element | Six of them | 🔥 Fire, ❄️ Ice, ⚡ Lightning, 🌿 Nature, ☠️ Shadow, 💎 Crystal |
+| Level | The die's strength | Lv1 … Lv10+ |
+
+### 1.2 Values and base points
+
+| Value | Base | Triple | Quad | Pent | Sext |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 100p | 1000p | 2000p | 4000p | 8000p |
+| 2 | 20p | 200p | 400p | 800p | 1600p |
+| 3 | 30p | 300p | 600p | 1200p | 2400p |
+| 4 | 40p | 400p | 800p | 1600p | 3200p |
+| 5 | 50p | 500p | 1000p | 2000p | 4000p |
+| 6 | 60p | 600p | 1200p | 2400p | 4800p |
+
+Expansion at high levels (75+): D8 adds 7 and 8 at 70p/80p, D10 adds 9 and 10 at
+90p/100p, D12 adds 11 and 12 at 110p/120p. Evolving a die costs Essence and Gems
+and requires selling duplicate dice. The result is a higher ceiling at the cost
+of a higher Farkle rate.
+
+### 1.3 Elements
+
+| Element | Base bonus | Per level |
+| --- | --- | --- |
+| 🔥 Fire | 6s +50% | +5% |
+| ❄️ Ice | Pairs +100% | +10% |
+| ⚡ Lightning | 4-6 score double | +10% |
+| 🌿 Nature | Even total restores one die | +1 die |
+| ☠️ Shadow | Farkle penalty halved | -10% |
+| 💎 Crystal | All 1s tripled | +100p |
+
+### 1.4 Die levels
+
+Each die levels independently, from Lv1 to Lv10.
+
+| Level | Effect | Example on a Fire die |
+| --- | --- | --- |
+| 1 | Base | 6 = 60p + 30p bonus |
+| 3 | +10% bonus | 6 = 60p + 33p bonus |
+| 5 | Unlocks an ability | +1 reroll when you score a 6 |
+| 7 | +20% bonus | 6 = 60p + 48p bonus |
+| 10 | Ultimate | 6 = 100p, ×2 bonus |
+
+Upgrade costs run from 500 coins + 10 Essence at Lv2 to 5000 coins + 100 Essence
+at Lv10.
+
+### 1.5 Starting sets and drops
+
+| Levels | Starting dice | Drops |
+| --- | --- | --- |
+| 1-10 | 6× Basic (Lv1) | 1 Fire/Ice die (Lv1) per boss |
+| 11-30 | 4× Basic + 2× Element | 1 element die (Lv2-3) per 3 levels |
+| 31-50 | 2× Basic + 4× Element | 1 element die (Lv4-5) + 1 artifact |
+| 51-75 | 6× Element | 1 element die (Lv6-8) + 1 spell |
+| 76-100 | Mixed | 1 premium die (Lv9-10) + 1 relic |
+| 100+ | Everything unlocked | Any die, any relic |
+
+---
+
+## 2. Element combos
+
+### 2.1 Simple combos
+
+Counting dice of the same element, among the dice that scored:
+
+| Count | Multiplier | Example: Fire 6s |
+| --- | --- | --- |
+| 2 | ×1.5 | (60 + 30) × 1.5 = 135p |
+| 3 | ×2.5 | (60 + 45) × 2.5 = 262p |
+| 4 | ×4 | (60 + 60) × 4 = 480p |
+| 5 | ×6 | (60 + 75) × 6 = 810p |
+| 6 | ×10 | (60 + 90) × 10 = 1500p |
+
+Formula: `(base points + element bonus) × combo multiplier`
+
+### 2.2 Element trios (3 or more of the same element)
+
+**🔥 Fire trio** — 6s score 100p instead of 60p; triples of 6 gain +200p.
+Lv5+: 6s double. Lv10: 6s triple, and +1 reroll.
+
+**❄️ Ice trio** — pairs count as triples when scoring; Farkle chance drops 50%.
+Lv5+: pairs gain another +100%. Lv10: triples gain +50%, stacking.
+
+**⚡ Lightning trio** — 4s through 6s score double; 1s become 6s for the round.
+Lv5+: 4-6 triple. Lv10: a 6 is guaranteed on the first roll.
+
+**🌿 Nature trio** — rerolls cost no energy, and you get one free reroll per
+round. Lv5: an even total restores two dice. Lv10: two free rerolls per round.
+
+**☠️ Shadow trio** — a Farkle pays +50p instead of costing 100p; 1s score 150p.
+Lv5: a Farkle pays +100p. Lv10: +200p and an extra reroll.
+
+**💎 Crystal trio** — 1s triple, to 300p; a 1-6 straight pays +1000p.
+Lv5: 1s quadruple. Lv10: 1s quintuple and the straight pays +2000p.
+
+### 2.3 Mega combos
+
+**🌟 Elemental Master** (one of each element) — every die is wild for the round
+and may act as any element. ×5 on everything, ×7 at Lv10+.
+
+**☄️ Universal Overload** (a 6 in every element) — automatic straight bonus and
++5000p, guaranteeing the round. Lv10+: 8000p and a ×3 combo.
+
+**🔮 Chaos Mode** (3+ different elements, at least 2 of each) — every element
+combo fires at once, ×2 on all element bonuses, ×3 at Lv10.
+
+---
+
+## 3. Cards
+
+### 3.1 Card types
+
+| Type | Rarity | Count | Use |
+| --- | --- | --- | --- |
+| Scrolls | Common | 4-6 | Base spells, one round |
+| Potions | Uncommon | 6 (one per element) | Element boosts, one round |
+| Artifacts | Rare | 6 (one per element) | Permanent for the run |
+| Spells | Epic | 6 (one per element) | Game-changing, one round, expensive |
+| Relics | Legendary | 4 | Run-defining, once per run |
+
+### 3.2 Scrolls (common)
+
+| Card | Effect | Energy | Max per round |
+| --- | --- | --- | --- |
+| Extra Die | +1 die this round | 3 | 2 |
+| Reroll Token | +1 free reroll | 2 | 3 |
+| Coin Boost | +50% coins from the run | 4 | 1 |
+| Shield | Farkle immunity this round | 5 | 1 |
+| Draw 2 | Draw 2 extra cards | 3 | 2 |
+| Discard Swap | Swap 3 cards free | 4 | 1 |
+
+### 3.3 Potions (uncommon, element-specific)
+
+| Card | Effect | Energy |
+| --- | --- | --- |
+| Fire Brew | 🔥 Fire dice ×2 this round | 5 |
+| Frost Shield | ❄️ Ice dice +100% pair bonus | 6 |
+| Storm Call | ⚡ Lightning dice guaranteed 4-6 | 7 |
+| Earth Restore | 🌿 Nature dice restore 2 dice | 5 |
+| Shadow Veil | ☠️ Shadow dice +100% Farkle points | 6 |
+| Crystal Focus | 💎 Crystal dice triple all 1s | 8 |
+
+### 3.4 Artifacts (rare, permanent for the run)
+
+| Card | Effect | Energy |
+| --- | --- | --- |
+| Fire Crown | 🔥 Fire triples +200p | 8 |
+| Ice Scepter | ❄️ Ice pairs count as triples | 10 |
+| Thunder Orb | ⚡ Lightning 6s always double | 12 |
+| Forest Charm | 🌿 Nature rerolls always free | 10 |
+| Void Mask | ☠️ Shadow dice ignore Farkle | 15 |
+| Diamond Ring | 💎 Crystal 1s always 300p | 20 |
+
+### 3.5 Spells (epic)
+
+| Card | Effect | Energy |
+| --- | --- | --- |
+| Meteor Storm | Every die becomes a 6 | 15 |
+| Frozen World | Every die becomes Ice | 18 |
+| Lightning Field | Every die becomes 4-6 | 20 |
+| Nature's Blessing | Reroll everything, keep the score so far | 25 |
+| Shadow Realm | Farkle is positive this round | 22 |
+| Crystal Shatter | 1s triple, +1000p | 30 |
+
+### 3.6 Relics (legendary, once per run)
+
+| Card | Effect | Energy |
+| --- | --- | --- |
+| Dragon Heart | Every die wild | 40 |
+| Phoenix Feather | Death costs half your items, not all | 50 |
+| Elemental Crown | Element combos ×2 permanently | 60 |
+| Time Diamond | Reroll and keep every die | 75 |
+
+### 3.7 Drawing
+
+Run start draws 5 cards: 60% common, 25% uncommon, 10% rare, 4% epic, 1%
+legendary. Between levels, draw 2. A boss win draws 3 with a rarity guarantee.
+The shop sells specific cards for coins, gems and souls.
+
+---
+
+## 4. Round flow
+
+```
+STAGE START
+  Draw 6 dice (value + element + level)
+  Draw 5 cards
+  Energy = sum of the dice symbols
+  Goal: reach the target score
+        ↓
+STEP 1 — SCORE DICE
+  Pick which dice to score
+  Unscored dice must be rerolled
+  Score every die → EXTRA DIE
+        ↓
+STEP 2 — CHECK ELEMENT COMBOS
+  Count dice per element
+  Apply combo multipliers
+  Add element-specific bonuses
+        ↓
+STEP 3 — PLAY CARDS
+  Cast spells, potions, artifacts
+  Paid for with energy
+  Artifacts persist
+        ↓
+STEP 4 — REROLL THE REST
+  Unscored dice are rerolled
+  Max 3 rerolls per round
+  A roll can fail (Farkle)
+        ↓
+STEP 5 — PUSH YOUR LUCK
+  [Continue] reroll and risk a Farkle
+  [Bank it]  secure the score, next round
+  Push limits: 80%, 65%, 50% (3 max)
+        ↓
+STEP 6 — RESULT
+  Total vs. goal
+  Win: coins, gems, drops
+  Loss: souls, possibly items
+```
+
+---
+
+## 5. Progression
+
+### 5.1 Level bands
+
+| Levels | Title | Unlocks | Target |
+| --- | --- | --- | --- |
+| 1-10 | Novice | Fire/Ice dice, scrolls | 500-1000p |
+| 11-25 | Apprentice | Lightning/Nature, potions | 1500-2500p |
+| 26-50 | Expert | Shadow/Crystal, artifacts | 3000-6000p |
+| 51-75 | Master | All elements, spells | 7000-12000p |
+| 76-100 | Legend | Relics, D8/D10 dice | 15000-25000p |
+| 100+ | Champion | Endless mode, any die | Any |
+
+### 5.2 Bosses
+
+| Boss | Level | Target | Rule change | Reward |
+| --- | --- | --- | --- | --- |
+| Fire Lord | 25 | 2500p | Only Fire dice score | 🔥 Fire die (Lv3) + Fire Brew |
+| Ice Queen | 50 | 5000p | All 1s become 6s | ❄️ Ice die (Lv5) + Frost Shield |
+| Storm Caller | 75 | 10000p | Only Lightning dice score | ⚡ Lightning die (Lv7) + Storm Call |
+| Elemental King | 100 | 25000p | All elements ×2 | Any relic + any die (Lv10) |
+
+### 5.3 Drop table
+
+| Levels | Common | Uncommon | Rare | Epic | Legendary |
+| --- | --- | --- | --- | --- | --- |
+| 1-10 | 80% | 15% | 5% | — | — |
+| 11-25 | 60% | 25% | 10% | 5% | — |
+| 26-50 | 50% | 30% | 15% | 5% | — |
+| 51-75 | 40% | 35% | 20% | 5% | — |
+| 76-100 | 30% | 35% | 25% | 8% | 2% |
+| 100+ | 25% | 30% | 30% | 10% | 5% |
+
+---
+
+## 6. Economy
+
+| Currency | Spent on | Earned from |
+| --- | --- | --- |
+| Coins | Scrolls, potions, die upgrades | Run score |
+| Gems | Artifacts, spells | Boss wins |
+| Essence | Die evolution (D6 → D8 → D10) | Selling duplicate dice |
+| Souls | Relics, Phoenix Feather | Deaths (1 per death) |
+
+The shop between runs — the Elemental Market — sells element dice at 500 coins,
+scrolls at 100 coins, potions at 300 coins, artifacts at 50 gems, spells at 100
+gems, relics at 5 souls and an evolution step at 500 coins.
+
+Evolution: Basic (D6) → Enhanced (D8) at 500 coins + 10 Essence + Lv5 →
+Master (D10) at 1000 coins + 25 Essence + Lv10 → Grand (D12) at 2500 coins +
+50 Essence + Lv15.
+
+---
+
+## 7. Example builds
+
+**Fire Specialist (aggressive)** — 4× Fire (Lv7-10) + 2 basic, with Fire Brew,
+Meteor Storm, Fire Crown and Dragon Heart. Push hard. 5000-10000p per round.
+Extreme single-round ceiling; hungry for energy and specific cards.
+
+**Elemental Balanced (consistent)** — one die of each element (Lv5-8), with
+Elemental Crown, Nature's Blessing and Storm Call. The Elemental Master combo is
+always live: ×5, or ×10 with the crown. 2500-5000p per round. Low variance,
+lower ceiling.
+
+**Shadow Risk Taker (high risk)** — 6× Shadow (Lv8-10), with Void Mask, Shadow
+Veil and Phoenix Feather. Void Mask makes a Farkle *positive*, so push with no
+consequence and farm souls. 1000-8000p, wildly variable.
+
+---
+
+## 8. Visual design
+
+| Element | Colour | Particles | Animation |
+| --- | --- | --- | --- |
+| 🔥 Fire | `#FF4500` | Embers, sparks | Glow pulses on a 6 |
+| ❄️ Ice | `#00FFFF` | Snowflakes | Frosted glass |
+| ⚡ Lightning | `#FFD700` | Electric arcs | Crackles on 4-6 |
+| 🌿 Nature | `#32CD32` | Leaves | Soft sway |
+| ☠️ Shadow | `#4B0082` | Dark mist | Swirling void |
+| 💎 Crystal | `#C0C0C0` | Shimmer | Sparkles on a 1 |
+
+Combo feedback: a light screen shake, dice glowing in the element colour, gold
+text naming the combo ("FIRE TRIO! +500p"), and a particle burst. A *ding* for a
+base score, a *whoosh* for a combo, a *boom* for a mega combo. The score number
+animates upward and the progress bar fills in the element colour.
+
+---
+
+## 9. Balance parameters
+
+| Parameter | Value |
+| --- | --- |
+| Starting dice | 6 |
+| Starting cards | 5 |
+| Max rerolls | 3 per round |
+| Energy cost (swap) | 3-8 by card type |
+| Push chances | 80% / 65% / 50%, 3 max |
+| Farkle penalty | -100p, scaling with level |
+| Target score (Lv1) | 500p |
+| Legendary drop rate | 2% at Lv100 |
+
+---
+
+## 10. Post-MVP expansions
+
+Daily challenges and achievements first, then co-op and an arena mode, then
+custom dice and a season pass. After level 150, D16 and D20 dice with two new
+elements (⭐ Cosmic, 🌙 Void), eight-element combos and a ten-straight bonus.
+Cosmetic die skins sold for coins and gems or dropped from events.
+
+---
+
+## 11. Success metrics
+
+| Metric | Target |
+| --- | --- |
+| Round time | 2-5 min |
+| Win rate | 60% |
+| Daily active | 25% |
+| Day-7 retention | 40% |
+| Average session | 15 min |
+| Boss win rate | 50% |
+
+---
+
+## Deviations and open questions
+
+Places where the build knowingly differs from the specification above, and why.
+Each is a decision that can be reversed — none of them are accidents.
+
+### 1. Single dice score only on 1 and 5 — **resolved, deliberate**
+
+§1.2's *Base* column gives every face a score: a lone 2 is 20p, a lone 3 is 30p,
+and so on. Taken literally that means **every die always scores**, so a roll can
+never fail, so a Farkle can never happen — and with no bust risk, "Continue" is
+strictly better than "Bank it" every single time. The push-your-luck core of
+§4 step 5 disappears entirely.
+
+The build therefore uses classic Farkle singles:
+
+```
+1 = 100p        5 = 50p        2, 3, 4, 6 = nothing on their own
+```
+
+Everything else in §1.2 is kept **verbatim**, because the triple/quad/pent/sext
+columns already *are* classic Farkle — three 1s at 1000p, three N at N×100, and
+each extra die doubling the triple. Only the *Base* column changes.
+
+Note that this makes Fire ("6s +50%") a triples-and-combos element rather than a
+singles element, which reads as an improvement: it gives Fire a distinct shape
+instead of a flat bonus on every roll.
+
+### 2. Rerolls are limited by the bust, not by a counter — **provisional**
+
+§4 step 4 says "max 3 rerolls per round", and §4 step 5 gives push limits of
+80%/65%/50% for at most 3 pushes. In Farkle these are the same decision counted
+twice, and a hard cap makes it a non-decision: with a guaranteed-safe first and
+second roll, the only real choice is the third.
+
+The MVP lets the player roll as long as they keep setting dice aside, with the
+Farkle as the only limiter — the standard Farkle rule — and budgets the *level*
+by capping turns instead. Worth revisiting once the loop has been played: if
+turns feel too long, the cap comes back.
+
+### 3. MVP scope
+
+The first playable slice is dice only: the turn loop, six elements, the §2.1
+combo ladder and the §2.2 trios at their level-1 tier, roughly ten levels and
+endless mode.
+
+Not built yet, in rough priority order: cards (§3), the shop and currencies
+(§6), per-die levelling (§1.4), dice evolution and D8+ (§1.2), mega combos
+(§2.3), and the drop tables (§5.3). The engine seams they will attach to exist —
+see `CLAUDE.md` — but none of it is balanced or worth balancing until the core
+loop is known to be fun.
+
+### 4. Die levels are fixed at 1
+
+§1.3's per-level element scaling and §1.4's per-die upgrades are not in the MVP,
+so every element effect fires at its level-1 tier. `Die.level` exists and is
+carried through scoring, so the scaling is a change to the element rules rather
+than to the data model.

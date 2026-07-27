@@ -1,162 +1,127 @@
 extends TestCase
-## The thirty-level campaign: the shape of the curve, and that every level it
-## produces is actually playable.
-##
-## The exact tuning numbers are not pinned here — they move whenever
-## tools/balance_probe.gd says they should. What is pinned is the structure: the
-## target never goes backwards, never exceeds what a hand can reach, resources
-## only ever tighten, and no level is malformed.
-
-const C := PokerHandClassifier.Category
+## The ten-level curve: what each level asks for, what it hands the player, and
+## the guarantee that every one of them is actually playable.
 
 var _campaign : Campaign
 
 func before_each() -> void:
-	_campaign = load("res://resources/campaign.tres")
+	_campaign = Campaign.new()
 
-func _levels() -> Array:
-	return range(1, _campaign.level_count + 1)
+# --- the curve -------------------------------------------------------------
 
-# --- the curve ----------------------------------------------------------
+func test_the_first_level_opens_at_the_base_target() -> void:
+	assert_eq(_campaign.target_for(1), _campaign.base_target)
 
-func test_the_campaign_is_thirty_levels() -> void:
-	assert_eq(_campaign.level_count, 30)
+func test_the_target_climbs_every_level() -> void:
+	for level in range(2, _campaign.level_count + 1):
+		assert_true(
+			_campaign.target_for(level) > _campaign.target_for(level - 1),
+			"level %d asks for more than %d" % [level, level - 1]
+		)
 
-func test_the_target_never_goes_backwards() -> void:
-	var previous := 0
-	for level in _levels():
-		var target := _campaign.target_for(level)
-		if target < previous:
-			fail("level %d asks for %d after %d" % [level, target, previous])
-			return
-		previous = target
-	assert_true(true, "the target climbs or holds")
-
-## Past the ceiling a target stops being difficult and starts being impossible,
-## because the player's scoring power does not grow with the level number.
-func test_the_target_stops_at_the_ceiling() -> void:
-	for level in _levels():
-		if _campaign.target_for(level) > _campaign.target_ceiling:
-			fail("level %d exceeds the ceiling" % level)
-			return
+func test_the_turn_count_is_cut_once_and_late() -> void:
+	assert_eq(_campaign.turns_for(1), _campaign.base_turns)
 	assert_eq(
-		_campaign.target_for(_campaign.level_count), _campaign.target_ceiling,
-		"and the last level reaches it"
+		_campaign.turns_for(_campaign.turn_cut_level),
+		_campaign.base_turns - 1,
+		"one turn fewer"
 	)
 
-func test_rerolls_only_ever_decrease() -> void:
-	var previous := 99
-	for level in _levels():
-		var rerolls := _campaign.rerolls_for(level)
-		if rerolls > previous:
-			fail("level %d hands back a reroll" % level)
-			return
-		previous = rerolls
-	assert_true(true, "resources only tighten")
+func test_a_level_never_drops_below_one_turn() -> void:
+	for level in range(1, _campaign.level_count + 1):
+		assert_true(_campaign.turns_for(level) >= 1, "level %d is playable" % level)
 
-func test_the_player_always_keeps_at_least_one_reroll() -> void:
-	for level in _levels():
-		if _campaign.rerolls_for(level) < 1:
-			fail("level %d has no rerolls at all" % level)
-			return
-	assert_true(true)
+## Losing the turn is punishment enough while the player is still learning what
+## a Farkle is, so the points penalty starts late.
+func test_the_farkle_penalty_starts_at_zero() -> void:
+	assert_eq(_campaign.penalty_for(1), 0, "no penalty on level 1")
+	assert_eq(
+		_campaign.penalty_for(_campaign.penalty_from_level),
+		_campaign.farkle_penalty,
+		"and arrives later"
+	)
 
-func test_dice_only_ever_decrease() -> void:
-	assert_eq(_campaign.dice_for(1), 6)
-	assert_eq(_campaign.dice_for(_campaign.level_count), 5)
-	var previous := 99
-	for level in _levels():
-		var dice := _campaign.dice_for(level)
-		if dice > previous:
-			fail("level %d hands back a die" % level)
-			return
-		previous = dice
-	assert_true(true)
+# --- what each level hands out ---------------------------------------------
 
-func test_shape_demands_only_ever_harden() -> void:
-	var previous := -1
-	for level in _levels():
-		var demand := _campaign.demand_for(level)
-		if demand < previous:
-			fail("level %d asks for less than level %d did" % [level, level - 1])
-			return
-		previous = demand
-	assert_true(true)
+func test_the_opening_levels_are_plain_dice() -> void:
+	for level in [1, 2]:
+		for die_type in _campaign.bag_for(level).dice:
+			assert_eq(die_type.element, Element.NONE, "level %d is elementless" % level)
 
-func test_early_levels_ask_only_for_a_number() -> void:
-	assert_eq(_campaign.demand_for(1), -1)
-	assert_eq(_campaign.demand_for(_campaign.shape_demand_level - 1), -1)
+func test_elements_arrive_on_level_three() -> void:
+	var elements := _elements_in(_campaign.bag_for(3))
+	assert_true(elements.has(Element.FIRE), "Fire shows up")
 
-func test_the_late_levels_ask_for_a_shape() -> void:
-	assert_eq(_campaign.demand_for(_campaign.shape_demand_level), C.PAIR)
-	assert_eq(_campaign.demand_for(_campaign.hard_shape_level), C.TWO_PAIR)
+## A trio is where the interesting element rules switch on, so the campaign has
+## to hand out three of something before it can teach them.
+func test_a_trio_is_first_possible_on_level_four() -> void:
+	assert_true(_count_of(_campaign.bag_for(3), Element.FIRE) < 3, "not yet on 3")
+	assert_true(_count_of(_campaign.bag_for(4), Element.FIRE) >= 3, "a trio on 4")
 
-# --- bosses -------------------------------------------------------------
+func test_the_rainbow_level_hands_out_one_of_every_element() -> void:
+	var bag := _campaign.bag_for(9)
+	for element in Element.ALL:
+		assert_eq(_count_of(bag, element), 1, "one %s die" % element)
 
-func test_the_five_bosses_are_where_the_spec_puts_them() -> void:
-	for level in [5, 10, 15, 20, 25]:
-		assert_true(_campaign.is_boss(level), "level %d should be a boss" % level)
+func test_every_level_hands_out_six_dice() -> void:
+	for level in range(1, _campaign.level_count + 1):
+		assert_eq(_campaign.bag_for(level).size(), 6, "level %d" % level)
 
-func test_ordinary_levels_are_not_bosses() -> void:
-	for level in [1, 4, 6, 11, 19, 26, 30]:
-		assert_false(_campaign.is_boss(level), "level %d should be ordinary" % level)
+# --- bosses ----------------------------------------------------------------
 
-func test_an_authored_ruleset_overrides_the_curve() -> void:
-	var boss := _campaign.get_ruleset(5)
-	assert_eq(boss.boss_name, "Frost King")
-	assert_eq(boss.modifiers.size(), 1, "the file's modifier survived")
+func test_the_bosses_are_where_the_campaign_says_they_are() -> void:
+	for level in range(1, _campaign.level_count + 1):
+		var expected : bool = Campaign.BOSSES.has(level)
+		assert_eq(_campaign.is_boss(level), expected, "level %d" % level)
 
-func test_an_ordinary_level_is_computed() -> void:
-	var ruleset := _campaign.get_ruleset(7)
-	assert_eq(ruleset.id, &"level_7")
-	assert_true(ruleset.modifiers.is_empty())
-	assert_eq(ruleset.get_objective().target_score, _campaign.target_for(7))
+func test_a_boss_is_named_and_explained() -> void:
+	for level in Campaign.BOSSES:
+		var ruleset := _campaign.get_ruleset(int(level))
+		assert_false(ruleset.boss_name.is_empty(), "level %s has a name" % level)
+		assert_false(ruleset.boss_description.is_empty(), "and a description")
 
-# --- every level ---------------------------------------------------------
+func test_an_ordinary_level_has_no_boss_name() -> void:
+	assert_true(_campaign.get_ruleset(1).boss_name.is_empty())
 
-func test_every_level_produces_a_usable_ruleset() -> void:
-	for level in _levels():
-		var ruleset := _campaign.get_ruleset(level)
-		if ruleset == null:
-			fail("level %d has no ruleset" % level)
-			return
-		if ruleset.hand_size < 4 or ruleset.dice_count < 1:
-			fail("level %d is malformed: %d cards, %d dice" % [
-				level, ruleset.hand_size, ruleset.dice_count
-			])
-			return
-		if ruleset.get_objective().target_score <= 0:
-			fail("level %d has no target" % level)
-			return
-	assert_true(true, "all %d levels are well formed" % _campaign.level_count)
+func test_the_fire_lord_locks_scoring_to_fire() -> void:
+	var ruleset := _campaign.get_ruleset(10)
+	assert_eq(ruleset.modifiers.size(), 1, "one twist")
+	assert_true(ruleset.modifiers[0] is ElementLockModifier, "and it is the lock")
 
-## Drives every level to a verdict with a fixed seed. Catches a level that
-## cannot be finished at all, which no amount of tuning would show up as.
-func test_every_level_can_be_played_to_a_verdict() -> void:
-	for level in _levels():
-		var game := CardDiceGame.new(_campaign.get_ruleset(level), RngService.new(level * 31))
+func test_the_ember_warden_gates_banking() -> void:
+	var ruleset := _campaign.get_ruleset(5)
+	assert_true(ruleset.modifiers[0] is MinimumBankModifier, "a bank gate")
+
+# --- every level is playable ------------------------------------------------
+
+## The guarantee that matters most: no level in the campaign can be built into
+## something that crashes or cannot be started.
+func test_every_level_starts_and_rolls() -> void:
+	for level in range(1, _campaign.level_count + 1):
+		var game := FarkleGame.new(_campaign.get_ruleset(level), RngService.new(level + 1))
 		game.start()
-		while not game.can_save_hand():
-			var locked := false
-			for die in game.get_dice():
-				if not die.is_locked and game.toggle_lock(die):
-					locked = true
-					break
-			if not locked:
-				break
-		if not game.can_save_hand():
-			fail("level %d can never be saved" % level)
-			return
-		game.save_hand()
-		if game.state != CardDiceGame.State.WON and game.state != CardDiceGame.State.LOST:
-			fail("level %d reached no verdict" % level)
-			return
-	assert_true(true, "all %d levels reach a verdict" % _campaign.level_count)
+		assert_eq(game.get_dice().size(), 6, "level %d has six dice" % level)
+		assert_true(
+			game.state == FarkleGame.State.CHOOSING or game.state == FarkleGame.State.FARKLED,
+			"level %d reaches a playable state" % level
+		)
 
-func test_every_level_has_a_scene() -> void:
-	for level in _levels():
-		var path := "res://scenes/game_scene/levels/level_%d.tscn" % level
-		if not ResourceLoader.exists(path):
-			fail("no scene for level %d" % level)
-			return
-	assert_true(true, "all %d level scenes exist" % _campaign.level_count)
+func test_every_level_asks_for_a_positive_target() -> void:
+	for level in range(1, _campaign.level_count + 1):
+		assert_true(_campaign.get_ruleset(level).get_target_score() > 0, "level %d" % level)
+
+# --- helpers ---------------------------------------------------------------
+
+func _count_of(bag : BagDefinition, element : StringName) -> int:
+	var count := 0
+	for die_type in bag.dice:
+		if die_type.element == element:
+			count += 1
+	return count
+
+func _elements_in(bag : BagDefinition) -> Array[StringName]:
+	var found : Array[StringName] = []
+	for die_type in bag.dice:
+		if die_type.element not in found:
+			found.append(die_type.element)
+	return found

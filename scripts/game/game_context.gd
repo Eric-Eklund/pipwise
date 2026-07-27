@@ -1,65 +1,104 @@
 class_name GameContext
 extends RefCounted
-## The state a level is played against: the cards, the dice, and the white
-## energy that connects them.
+## The state a level is played against: the dice, the two scores, and the energy
+## the dice produce.
 ##
-## The dice used to be deliberately absent from this class. Die faces carried
-## actions, an action took a GameContext, and holding the dice here would have
-## closed the loop DieFace -> DieAction -> GameContext -> Die -> DieType ->
-## DieFace. Faces are plain numbers now, so the pool belongs here — the score
-## reads the dice, and so does every cost the player pays.
+## Split from FarkleGame so that an Objective can be handed the state without
+## being handed the game loop — a resource that could reach back into the loop
+## could also drive it, and then a level's win condition would be able to roll
+## dice. What an objective needs is a scoreboard, and this is the scoreboard.
 ##
-## Costs are priced here rather than in DicePool so there is exactly one place
-## that knows what energy is and how much of it is left.
+## ## Two scores, not one
+##
+## banked_score is safe and turn_score is not. Every Farkle decision is a bet of
+## the second against the first, so collapsing them into a total would erase the
+## only number the player is actually thinking about.
 
 signal energy_changed
+signal score_changed
 
-var deck : Deck
-var hand : Hand
 var pool : DicePool
 var rng : RngService
 
-## The current hand's worth. Kept live rather than written once at the end, so
-## the objective and the HUD can both read it while the player is still
-## deciding.
-var score : int = 0
-## The shape the current hand scores as, as a PokerHandClassifier.Category, or
-## -1 before anything has been evaluated.
-var current_category : int = -1
-## Multiplier applied on top of the hand's own. Boss modifiers raise it.
-var score_multiplier : float = 1.0
-## White energy already committed to swaps and locks this level.
+## Points the player has locked in. Only banking moves points here, and nothing
+## takes them away.
+var banked_score : int = 0
+## Points riding on the current turn. A Farkle wipes this; banking moves it.
+var turn_score : int = 0
+## Which turn is being played, counting from 1.
+var turn : int = 1
+## Turns the level allows. Zero means unlimited, which is what endless mode and
+## a pure score race want.
+var turn_limit : int = 0
+## How many Farkles the player has hit this level. Read by the HUD, and the only
+## record that a turn went badly once its points are gone.
+var farkle_count : int = 0
+
+## Energy already committed. Cards are not in the MVP, so nothing spends this
+## yet — the accounting is kept because the design document's energy is the sum
+## of the dice, which this already is, and deleting it would mean rebuilding it.
 var energy_spent : int = 0
 
-## Shapes a boss has ruled out. The evaluator skips these and takes the next
-## best thing the hand forms.
-var banned_categories : Array[int] = []
-## Extra multiplier a boss grants for particular shapes, keyed by category and
-## expressed as a fraction: 0.5 means "+50%".
-var category_bonuses : Dictionary = {}
-
-func _init(
-	game_deck : Deck,
-	game_hand : Hand,
-	game_pool : DicePool,
-	game_rng : RngService
-) -> void:
-	deck = game_deck
-	hand = game_hand
+func _init(game_pool : DicePool, game_rng : RngService) -> void:
 	pool = game_pool
 	rng = game_rng
-	# A reroll changes the total on the table, which changes what is left to
-	# spend even though nothing was spent. The pool has no idea it is currency,
-	# so the translation happens here.
 	pool.rolled.connect(_on_pool_rolled)
 
-## Every pip showing on the table. Both the energy budget and the score bonus —
-## spending energy deliberately does not reduce what the dice add to the hand.
+# --- score -----------------------------------------------------------------
+
+## Banked plus what is riding on this turn: what the player would have if they
+## banked right now. The number the progress bar shows, because it is the one
+## that answers "am I going to clear this".
+func projected_score() -> int:
+	return banked_score + turn_score
+
+func add_turn_score(points : int) -> void:
+	if points == 0:
+		return
+	turn_score += points
+	score_changed.emit()
+
+## Moves the turn's points somewhere nothing can reach them.
+func bank_turn_score() -> int:
+	var banked := turn_score
+	banked_score += turn_score
+	turn_score = 0
+	score_changed.emit()
+	return banked
+
+## Wipes the turn. The penalty is applied to the banked score, so a level can
+## charge for a Farkle beyond the points that were already at risk, and the
+## banked score never goes below zero — losing a level should come from missing
+## the target, not from arriving at it in debt.
+func lose_turn_score(penalty : int = 0) -> void:
+	turn_score = 0
+	farkle_count += 1
+	if penalty != 0:
+		banked_score = maxi(0, banked_score - penalty)
+	score_changed.emit()
+
+# --- turns -----------------------------------------------------------------
+
+func advance_turn() -> void:
+	turn += 1
+	energy_spent = 0
+	score_changed.emit()
+
+func turns_left() -> int:
+	if turn_limit <= 0:
+		return -1
+	return maxi(0, turn_limit - turn + 1)
+
+func has_turns_left() -> bool:
+	return turn_limit <= 0 or turn <= turn_limit
+
+# --- energy ----------------------------------------------------------------
+
+## Every pip the player's dice are showing. The design document's "energy = sum
+## of the dice symbols", waiting for the cards that will spend it.
 func total_energy() -> int:
 	return pool.total_value()
 
-## What is left to spend. A reroll that lands lower shrinks this, and that is
-## the risk which makes rerolling a decision rather than a formality.
 func available_energy() -> int:
 	return maxi(0, total_energy() - energy_spent)
 
@@ -73,25 +112,11 @@ func spend_energy(cost : int) -> bool:
 	energy_changed.emit()
 	return true
 
-## Hands energy back, e.g. when a die is unlocked before the lock ever mattered.
 func refund_energy(amount : int) -> void:
 	if amount <= 0:
 		return
 	energy_spent = maxi(0, energy_spent - amount)
 	energy_changed.emit()
-
-func is_category_banned(category : int) -> bool:
-	return category in banned_categories
-
-func multiplier_bonus_for(category : int) -> float:
-	return float(category_bonuses.get(category, 0.0))
-
-## Fills the hand back up from the deck. Returns how many were actually drawn,
-## which is less than requested once the deck is exhausted.
-func refill_hand() -> int:
-	var drawn := deck.draw(hand.missing_count())
-	hand.add(drawn)
-	return drawn.size()
 
 func _on_pool_rolled(_dice : Array[Die]) -> void:
 	energy_changed.emit()

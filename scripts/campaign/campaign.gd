@@ -2,56 +2,83 @@ class_name Campaign
 extends Resource
 ## Builds the ruleset for any level of the campaign.
 ##
-## Thirty levels are too many to author by hand and too few to leave to a bare
-## formula, so this does both: it computes an ordinary level from a curve, and
-## hands over an authored .tres when one exists. The boss levels are the
-## authored ones. Dropping a level_N.tres into resources/rulesets/ overrides
-## level N and needs no code change.
+## Ten levels are few enough to author and repetitive enough not to want to, so
+## this does both: it computes an ordinary level from a curve, and hands over an
+## authored .tres when one exists. Dropping a level_N.tres into
+## resources/rulesets/ overrides level N and needs no code change.
 ##
-## The curve deliberately does *not* lean on a rising score target. The player's
-## scoring power is fixed — no upgrades yet — so the spread of what a hand is
-## worth is the same on level 30 as on level 1. Past roughly 155 points a higher
-## target stops being difficult and starts being impossible. Difficulty
-## therefore comes from taking resources away, which is also what the design
-## spec's own progression table asks for from level 21 on.
+## ## The shape of the ten levels
+##
+## The campaign teaches one thing at a time. Levels 1 and 2 are plain dice and
+## nothing else, so the player learns what a Farkle costs before an element ever
+## softens one. Elements arrive from level 3, and a trio — three dice of one
+## element, where the interesting rules switch on — is first possible on level 4.
+## The bosses sit on 5 and 10.
+##
+## ## Where the numbers came from
+##
+## tools/balance_probe.gd, not guesswork. It plays every level hundreds of times
+## with a deliberately mediocre bot and reports the clear rate. Rerun it after
+## changing a target, a turn count or a bag — all three move the whole curve.
 
 const RULESET_DIR := "res://resources/rulesets"
 
-@export_range(1, 200) var level_count : int = 30
+@export_range(1, 200) var level_count : int = 10
 
 @export_group("Score target")
-## The target climbs gently across the whole campaign rather than steeply early.
-@export var base_target : int = 68
-@export var target_step : float = 3.0
-## Above this a target is not hard, it is unreachable. Measured with
-## tools/balance_probe.gd, not guessed.
-@export var target_ceiling : int = 150
+## Level 1's target. The design document's Novice band opens at 500.
+@export var base_target : int = 600
+## Added per level after the first.
+@export var target_step : float = 190.0
 
-@export_group("Tightening")
-## From this level on the player gets one reroll fewer, and from the second one
-## fewer again.
-@export var first_reroll_cut : int = 13
-@export var second_reroll_cut : int = 23
-## From this level on a number is not enough: the hand has to reach a shape.
-@export var shape_demand_level : int = 21
-## The shape demanded from that level on.
-@export var demanded_category : int = PokerHandClassifier.Category.PAIR
-## The last stretch asks for a harder shape instead of a bigger number, because
-## by then the target has hit its ceiling and has nowhere left to go.
-@export var hard_shape_level : int = 28
-@export var hard_demanded_category : int = PokerHandClassifier.Category.TWO_PAIR
-## From this level on the player rolls one die fewer, which cuts both the energy
-## and the score.
-@export var die_cut_level : int = 27
+@export_group("Turns")
+@export_range(1, 30) var base_turns : int = 5
+## From this level on the player gets one turn fewer. Taking a turn away bites
+## far harder than raising the target, so it happens once and late.
+@export var turn_cut_level : int = 8
 
-## Whether this level is a boss, answered by what the level actually is rather
-## than by counting in fives. The design spec puts bosses on 5, 10, 15, 20 and
-## 25 but not on 30, so an interval would claim a boss that does not exist.
+@export_group("Farkle")
+## From this level on a Farkle costs banked points too. Zero before it: losing
+## the turn is punishment enough while the player is still learning what a
+## Farkle even is.
+@export var penalty_from_level : int = 6
+@export var farkle_penalty : int = 100
+
+## The elements each level hands out, as [element, how many] out of six. Levels
+## not listed are plain dice. Authored rather than computed because "which
+## element shows up when" is a teaching decision, and a formula would hide it.
+const ELEMENT_SCHEDULE : Dictionary = {
+	3: [Element.FIRE, 2],
+	4: [Element.FIRE, 3],
+	5: [Element.FIRE, 4],
+	6: [Element.ICE, 3],
+	7: [Element.ICE, 4],
+	8: [Element.LIGHTNING, 3],
+	10: [Element.FIRE, 5],
+}
+
+## Levels that hand out one die of every element instead of a single element.
+const RAINBOW_LEVELS : Array[int] = [9]
+
+## The bosses, keyed by level. Kept here rather than in .tres files because a
+## boss is two lines of data and one modifier; the .tres override still exists
+## for one that turns out to need more.
+const BOSSES : Dictionary = {
+	5: {
+		"name": "Ember Warden",
+		"description": "Nothing banks below 500. You have to push.",
+	},
+	10: {
+		"name": "Fire Lord",
+		"description": "Only Fire dice score. Everything else is dead weight.",
+	},
+}
+
 func is_boss(level : int) -> bool:
 	return not get_ruleset(level).boss_name.is_empty()
 
 ## The authored ruleset for [param level] if there is one, otherwise a computed
-## ordinary level. Never returns null.
+## level. Never returns null.
 func get_ruleset(level : int) -> Ruleset:
 	var authored := "%s/level_%d.tres" % [RULESET_DIR, level]
 	if ResourceLoader.exists(authored):
@@ -61,47 +88,52 @@ func get_ruleset(level : int) -> Ruleset:
 	return build_ruleset(level)
 
 func target_for(level : int) -> int:
-	return mini(target_ceiling, base_target + int(round(level * target_step)))
+	return base_target + int(round(maxi(0, level - 1) * target_step))
 
-func rerolls_for(level : int) -> int:
-	var rerolls := 3
-	if level >= first_reroll_cut:
-		rerolls -= 1
-	if level >= second_reroll_cut:
-		rerolls -= 1
-	return rerolls
+func turns_for(level : int) -> int:
+	return maxi(1, base_turns - (1 if level >= turn_cut_level else 0))
 
-func dice_for(level : int) -> int:
-	return 5 if level >= die_cut_level else 6
+func penalty_for(level : int) -> int:
+	return farkle_penalty if level >= penalty_from_level else 0
 
-## An ordinary level. Bosses come from files, so nothing here knows about them.
+## The dice the player brings to [param level].
+func bag_for(level : int) -> BagDefinition:
+	if level in RAINBOW_LEVELS:
+		return StarterDice.create_rainbow_bag()
+	if ELEMENT_SCHEDULE.has(level):
+		var entry : Array = ELEMENT_SCHEDULE[level]
+		return StarterDice.create_element_bag(entry[0], int(entry[1]))
+	return StarterDice.create_starter_bag()
+
 func build_ruleset(level : int) -> Ruleset:
 	var ruleset := Ruleset.new()
 	ruleset.id = StringName("level_%d" % level)
-	ruleset.hand_size = 5
-	ruleset.dice_count = dice_for(level)
-	ruleset.max_rerolls = rerolls_for(level)
-	ruleset.card_swap_cost = 3
-	ruleset.die_lock_cost = 4
-	ruleset.evaluator = PokerHandEvaluator.new()
-	ruleset.objective = _objective_for(level)
+	ruleset.bag_definition = bag_for(level)
+	ruleset.turns = turns_for(level)
+	ruleset.farkle_penalty = penalty_for(level)
+
+	var objective := ScoreTargetObjective.new()
+	objective.target_score = target_for(level)
+	ruleset.objective = objective
+
+	_apply_boss(ruleset, level)
 	return ruleset
 
-## The shape a level demands, or -1 when it only asks for a number.
-func demand_for(level : int) -> int:
-	if level >= hard_shape_level:
-		return hard_demanded_category
-	if level >= shape_demand_level:
-		return demanded_category
-	return -1
+## A boss is an ordinary level with a name and one twist. Applied last so it can
+## override anything the curve decided.
+func _apply_boss(ruleset : Ruleset, level : int) -> void:
+	if not BOSSES.has(level):
+		return
+	var boss : Dictionary = BOSSES[level]
+	ruleset.boss_name = String(boss["name"])
+	ruleset.boss_description = String(boss["description"])
 
-func _objective_for(level : int) -> Objective:
-	var demand := demand_for(level)
-	if demand < 0:
-		var simple := ScoreTargetObjective.new()
-		simple.target_score = target_for(level)
-		return simple
-	var demanding := RequiredCategoryObjective.new()
-	demanding.target_score = target_for(level)
-	demanding.minimum_category = demand
-	return demanding
+	match level:
+		5:
+			var gate := MinimumBankModifier.new()
+			gate.minimum = 500
+			ruleset.modifiers = [gate] as Array[LevelModifier]
+		10:
+			var lock := ElementLockModifier.new()
+			lock.element = Element.FIRE
+			ruleset.modifiers = [lock] as Array[LevelModifier]

@@ -1,0 +1,319 @@
+class_name FarkleGame
+extends RefCounted
+## Runs one level: turn after turn of rolling, setting dice aside, and deciding
+## whether to push or bank, until the target is reached or the turns run out.
+##
+## Replaces CardDiceGame, which could not be adapted. That class was built on
+## "one level is one hand" — a single scoring event with a single verdict. A
+## Farkle level is a loop inside a loop: many turns per level, many rolls per
+## turn, with the score changing hands at every step.
+##
+## Headless by design. Nothing here touches a Node, so a whole level can be
+## driven to a win or a loss inside a test, which is what lets the balance probe
+## measure the difficulty curve instead of guessing at it.
+##
+## ## The turn
+##
+##     roll  ──▶ nothing scores? ──▶ FARKLE: the turn's points are gone
+##           └─▶ something does  ──▶ the player sets dice aside
+##                                   ├─▶ all six set aside → HOT DICE, roll again
+##                                   ├─▶ [Push]  roll what is left, points at risk
+##                                   └─▶ [Bank]  points become safe, next turn
+##
+## A push is not capped. The design document asks for at most three rolls a turn,
+## but the bust already is the limit — with two guaranteed-safe rolls in front of
+## it the decision would not be a decision. The level's turn count is the budget
+## instead. See the deviations section of docs/DESIGN.md.
+
+signal dice_changed
+signal selection_changed
+signal score_changed
+signal rolled
+## Nothing on the table scores. Carries what the turn was worth before it went.
+signal farkled(points_lost : int)
+signal banked(points : int)
+signal hot_dice
+signal turn_started(turn : int)
+signal state_changed(new_state : State)
+signal level_won
+signal level_lost
+
+enum State {
+	SETUP,
+	## Dice on the table, the player choosing what to keep.
+	CHOOSING,
+	## The roll scored nothing. A dead end the player has to acknowledge.
+	FARKLED,
+	WON,
+	LOST,
+}
+
+var ruleset : Ruleset
+var context : GameContext
+var state : State = State.SETUP
+## What the dice the player has marked are worth. Recomputed after every tap so
+## the HUD can read it rather than scoring the selection again on each redraw.
+var selection_score : DiceScore
+## The element rules for the dice currently in play. Rebuilt on every roll,
+## because a trio depends on what is on the table.
+var rules : ElementRules
+
+var _rng : RngService
+var _objective : Objective
+## Dice the player has marked but not yet committed. Marking is reversible;
+## committing is not, which is why the two are separate.
+var _selection : Array[Die] = []
+
+func _init(game_ruleset : Ruleset, rng : RngService) -> void:
+	ruleset = game_ruleset
+	_rng = rng
+	_objective = ruleset.get_objective()
+
+	var pool := DicePool.new(ruleset.get_bag_definition(), rng)
+	context = GameContext.new(pool, rng)
+	context.turn_limit = ruleset.turns
+	rules = ElementRules.new()
+
+func get_objective() -> Objective:
+	return _objective
+
+func get_pool() -> DicePool:
+	return context.pool
+
+func get_dice() -> Array[Die]:
+	return context.pool.dice
+
+func get_dice_in_play() -> Array[Die]:
+	return context.pool.get_in_play()
+
+# --- starting --------------------------------------------------------------
+
+## Begins the level and rolls the first turn.
+func start() -> void:
+	_set_state(State.CHOOSING)
+	for modifier in ruleset.modifiers:
+		modifier.on_level_start(context)
+	_begin_turn()
+
+## Rolls for a new turn: everything back on the table, nothing riding yet.
+func _begin_turn() -> void:
+	context.pool.reset_turn()
+	_clear_selection()
+	for modifier in ruleset.modifiers:
+		modifier.on_turn_start(context)
+	turn_started.emit(context.turn)
+	_roll()
+
+# --- rolling ---------------------------------------------------------------
+
+## Rolls whatever is still in play and works out whether the turn survived it.
+func _roll() -> void:
+	context.pool.roll()
+	_clear_selection()
+	# After the roll: a trio depends on the dice that are on the table now.
+	rules = ElementRules.new(get_dice_in_play())
+	rolled.emit()
+	dice_changed.emit()
+
+	if get_scorable_dice().is_empty():
+		_farkle()
+	else:
+		_refresh_selection_score()
+
+## Whether the player may push. Pushing is only meaningful once something has
+## been committed — rolling again without setting a die aside would be a free
+## retry, which is the one thing Farkle must never allow.
+func can_push() -> bool:
+	return state == State.CHOOSING \
+		and _selection.is_empty() \
+		and context.pool.set_aside_count() > 0 \
+		and not context.pool.is_exhausted()
+
+## Rolls again with the dice that are left, the turn's points still at risk.
+func push() -> bool:
+	if not can_push():
+		return false
+	_roll()
+	return true
+
+# --- choosing --------------------------------------------------------------
+
+## The dice the player is allowed to set aside.
+##
+## The boss narrows the field *before* the scorer sees it, not after. Filtering
+## afterwards looks equivalent and is not: a straight makes all six dice score,
+## and keeping only the Fire ones out of it leaves three dice that are marked
+## takeable but form nothing, so the player can select them and then find the
+## commit button dead. Removing them up front means the scorer never offers a
+## shape the boss would break.
+func get_scorable_dice() -> Array[Die]:
+	var candidates := get_dice_in_play()
+	for modifier in ruleset.modifiers:
+		candidates = modifier.filter_scorable(context, candidates)
+	return FarkleScorer.best_selection(candidates, rules)
+
+func is_selected(die : Die) -> bool:
+	return die in _selection
+
+func get_selection() -> Array[Die]:
+	return _selection.duplicate()
+
+func can_select(die : Die) -> bool:
+	if state != State.CHOOSING or die == null or die.is_set_aside:
+		return false
+	return die in get_scorable_dice()
+
+## Marks or unmarks a die. Free and reversible — nothing is spent until the
+## selection is committed, so the player can try a combination and change their
+## mind without being punished for experimenting.
+func toggle_selection(die : Die) -> bool:
+	if die in _selection:
+		_selection.erase(die)
+	elif can_select(die):
+		_selection.append(die)
+	else:
+		return false
+	_refresh_selection_score()
+	selection_changed.emit()
+	return true
+
+## Marks everything that scores. The button most players will use most of the
+## time, and never a worse choice than a subset — see FarkleScorer.best_selection.
+func select_all_scoring() -> void:
+	_selection = get_scorable_dice()
+	_refresh_selection_score()
+	selection_changed.emit()
+
+func can_commit_selection() -> bool:
+	return state == State.CHOOSING \
+		and selection_score != null \
+		and selection_score.is_valid()
+
+## Commits the marked dice to the turn: their points join the turn score and the
+## dice leave the table. The only irreversible move inside a turn.
+##
+## Two things can follow immediately. Nature may hand dice back, and clearing
+## the table earns hot dice — all six again with the score intact, which is
+## where the big turns come from.
+func commit_selection() -> bool:
+	if not can_commit_selection():
+		return false
+
+	var score := selection_score
+	context.pool.set_aside_all(_selection)
+	context.add_turn_score(score.total())
+	_clear_selection()
+
+	if score.dice_restored > 0:
+		context.pool.restore(score.dice_restored)
+
+	if context.pool.is_exhausted():
+		context.pool.reset_for_hot_dice()
+		hot_dice.emit()
+		dice_changed.emit()
+		score_changed.emit()
+		_roll()
+		return true
+
+	dice_changed.emit()
+	score_changed.emit()
+	_refresh_selection_score()
+	return true
+
+# --- banking ---------------------------------------------------------------
+
+func can_bank() -> bool:
+	if state != State.CHOOSING or context.turn_score <= 0:
+		return false
+	# An uncommitted selection is not banked. Requiring it to be committed first
+	# keeps one rule — points are only real once set aside — instead of two.
+	if not _selection.is_empty():
+		return false
+	if context.turn_score < ruleset.minimum_bank:
+		return false
+	for modifier in ruleset.modifiers:
+		if not modifier.can_bank(context):
+			return false
+	return true
+
+## Why banking is blocked, e.g. "Reach 500 to bank". Empty when it is not.
+func get_bank_requirement_text() -> String:
+	if context.turn_score > 0 and context.turn_score < ruleset.minimum_bank:
+		return "Reach %d to bank" % ruleset.minimum_bank
+	for modifier in ruleset.modifiers:
+		if not modifier.can_bank(context):
+			var text := modifier.get_requirement_text(context)
+			if not text.is_empty():
+				return text
+	return ""
+
+## Makes the turn's points safe and ends the turn.
+func bank() -> bool:
+	if not can_bank():
+		return false
+	var points := context.bank_turn_score()
+	banked.emit(points)
+	score_changed.emit()
+	_end_turn()
+	return true
+
+# --- farkle ----------------------------------------------------------------
+
+## Nothing on the table scores. The turn's points are gone, and the level may
+## charge for it on top.
+func _farkle() -> void:
+	var lost := context.turn_score
+	context.lose_turn_score(rules.farkle_penalty(ruleset.farkle_penalty))
+	_set_state(State.FARKLED)
+	farkled.emit(lost)
+	score_changed.emit()
+
+## Acknowledges a Farkle and moves on. A separate step rather than an automatic
+## one because losing 2000 points deserves a beat to look at, and because a turn
+## ending on its own while the player is mid-tap is how a phone game gets thrown
+## across a room.
+func continue_after_farkle() -> bool:
+	if state != State.FARKLED:
+		return false
+	_set_state(State.CHOOSING)
+	_end_turn()
+	return true
+
+# --- turn and level boundaries ---------------------------------------------
+
+## Judges the level, then either starts the next turn or stops.
+##
+## The order matters: winning is checked before running out of turns, so banking
+## the winning points on the last turn is a win and not a loss.
+func _end_turn() -> void:
+	if _objective.is_met(context):
+		_set_state(State.WON)
+		level_won.emit()
+		return
+
+	context.advance_turn()
+
+	if _objective.is_failed(context):
+		_set_state(State.LOST)
+		level_lost.emit()
+		return
+
+	_begin_turn()
+
+# --- scoring ---------------------------------------------------------------
+
+## Recomputes what the marked dice are worth. Called after every change so the
+## HUD can read selection_score instead of scoring the selection again itself.
+func _refresh_selection_score() -> void:
+	selection_score = FarkleScorer.score(_selection, rules)
+	score_changed.emit()
+
+func _clear_selection() -> void:
+	_selection.clear()
+	selection_score = FarkleScorer.score([] as Array[Die], rules)
+
+func _set_state(new_state : State) -> void:
+	if state == new_state:
+		return
+	state = new_state
+	state_changed.emit(state)
