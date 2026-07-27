@@ -27,6 +27,7 @@ var _settle_tween : Tween
 var _flicker_tween : Tween
 
 @onready var _face_view : DieFaceView = %DieFaceView
+@onready var _sparks : CPUParticles2D = %Sparks
 
 func _ready() -> void:
 	_centre_pivot()
@@ -34,6 +35,26 @@ func _ready() -> void:
 	pressed.connect(_on_pressed)
 	if die != null:
 		play_roll()
+
+## A burst in the die's own element colour, for the moment it is taken. Fired by
+## the level rather than by refresh_state, because a die can be redrawn as set
+## aside for many reasons and only one of them is worth celebrating.
+func play_take() -> void:
+	if die == null:
+		return
+	_sparks.position = size / 2.0
+	_sparks.color = Element.get_color(die.element) if die.element != Element.NONE \
+		else Color(0.98, 0.95, 0.88)
+	_sparks.restart()
+	_sparks.emitting = true
+
+	# A short squash and back. The die is being pulled off the table, and it
+	# should look like something happened to it.
+	var tween := create_tween()
+	tween.tween_property(self, "scale", Vector2(1.18, 1.18), 0.09) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "scale", Vector2.ONE, 0.16) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func set_die(new_die : Die) -> void:
 	die = new_die

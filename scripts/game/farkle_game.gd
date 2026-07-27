@@ -29,6 +29,10 @@ signal dice_changed
 signal selection_changed
 signal score_changed
 signal rolled
+## Dice were committed to the turn. Carries what they were worth and which ones
+## they were, because by the time a listener looks at the pool every set aside
+## die looks alike and only this knows which the player just chose.
+signal took(score : DiceScore, dice : Array[Die])
 ## Nothing on the table scores. Carries what the turn was worth before it went.
 signal farkled(points_lost : int)
 signal banked(points : int)
@@ -200,9 +204,11 @@ func commit_selection() -> bool:
 		return false
 
 	var score := selection_score
+	var taken := _selection.duplicate()
 	context.pool.set_aside_all(_selection)
 	context.add_turn_score(score.total())
 	_clear_selection()
+	took.emit(score, taken)
 
 	if score.dice_restored > 0:
 		context.pool.restore(score.dice_restored)

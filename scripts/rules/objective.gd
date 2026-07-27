@@ -28,10 +28,28 @@ func is_failed(_context : GameContext) -> bool:
 func get_description() -> String:
 	return ""
 
+## The number that is counting up. Split out from the text so the HUD can
+## *animate* it — a score that snaps from 400 to 3150 is a number, and one that
+## rolls up to 3150 is an event. The HUD cannot tween a string.
+func get_progress_value(_context : GameContext) -> int:
+	return 0
+
+## What that number is counting towards, or 0 for an objective with no fixed
+## goal. Endless has one per round; a future "bank three turns running" would
+## not.
+func get_progress_goal() -> int:
+	return 0
+
+## Renders a progress value the way this objective wants it read. Takes the
+## value rather than the context, so the HUD can format a half-finished tween
+## step and not only the true current score.
+func format_progress(value : int) -> String:
+	return str(value)
+
 ## Short progress readout for the HUD, e.g. "1200 / 1500". Reads the live score,
 ## so it moves while the player is still deciding whether to push.
-func get_progress_text(_context : GameContext) -> String:
-	return ""
+func get_progress_text(context : GameContext) -> String:
+	return format_progress(get_progress_value(context))
 
 ## How close the player is, 0 to 1, for a progress bar. Zero for an objective
 ## that cannot express itself as a fraction.

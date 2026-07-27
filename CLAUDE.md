@@ -10,6 +10,7 @@ godot --headless --script res://tests/run_tests.gd       # the engine suite
 godot --headless res://tools/playthrough_probe.tscn      # every level, through its buttons
 godot --headless --script res://tools/balance_probe.gd   # the difficulty curve
 godot --headless --script res://tools/generate_campaign.gd
+godot --headless --script res://tools/generate_sfx.gd    # the sound effects
 ```
 
 The first two run in CI. Note which are scenes and which are scripts: anything
@@ -71,7 +72,8 @@ the class is for and what it deliberately is not.
 | `scripts/campaign/` | The ten-level curve and endless mode |
 | `scenes/game_scene/` | The board, the dice views, the HUD |
 | `scenes/menus/`, `scenes/windows/` | Menus, options, pause, guide, tutorial |
-| `tools/` | Generators, the balance probe, the screenshot harness. Not shipped |
+| `scenes/game_scene/effects/` | Shake, flash, particles and the sounds |
+| `tools/` | Generators, the probes, the screenshot harness. Not shipped |
 | `addons/maaacks_game_template/` | Upstream template — menus, scene loader, save layer |
 
 ## The seams

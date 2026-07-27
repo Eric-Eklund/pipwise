@@ -41,8 +41,12 @@ var game : FarkleGame
 var _notice : String = ""
 var _notice_color : Color = HINT_COLOR
 
+@onready var _board : Control = %Board
 @onready var _dice_tray : DiceTray = %DiceTray
 @onready var _score_hud : ScoreHud = %ScoreHud
+@onready var _banner : ScoreBanner = %ScoreBanner
+@onready var _effects : BoardEffects = %BoardEffects
+@onready var _sounds : BoardSounds = %BoardSounds
 @onready var _hint_label : Label = %HintLabel
 @onready var _take_button : Button = %TakeButton
 @onready var _roll_button : Button = %RollButton
@@ -52,6 +56,7 @@ func _ready() -> void:
 	super()
 	_dice_tray.die_pressed.connect(_on_die_pressed)
 	_score_hud.guide_requested.connect(_on_guide_requested)
+	_effects.bind_board(_board)
 	start_round(_get_ruleset())
 	_show_tutorial_once()
 
@@ -69,6 +74,8 @@ func start_round(round_ruleset : Ruleset) -> void:
 	game.selection_changed.connect(_refresh)
 	game.score_changed.connect(_refresh)
 	game.rolled.connect(_on_rolled)
+	game.took.connect(_on_took)
+	game.banked.connect(_on_banked)
 	game.farkled.connect(_on_farkled)
 	game.hot_dice.connect(_on_hot_dice)
 	game.turn_started.connect(_on_turn_started)
@@ -120,20 +127,57 @@ func _on_bank_button_pressed() -> void:
 
 func _on_rolled() -> void:
 	_dice_tray.play_roll()
+	_sounds.play_roll()
 
 func _on_turn_started(_turn : int) -> void:
 	_clear_notice()
 	_refresh()
 
+## The dice burst in their own element colour and the board takes a knock whose
+## size is the size of the score. A 100-point take should not feel like a
+## 3000-point one, and this is the cheapest place to say so.
+func _on_took(score : DiceScore, dice : Array[Die]) -> void:
+	_dice_tray.play_take(dice)
+	_banner.show_score(score)
+	_effects.shake(_shake_for(score.total()))
+	_sounds.play_take(score.total(), _expected_per_turn(), score.combo_count)
+
+func _on_banked(points : int) -> void:
+	_banner.show_banked(points)
+	_sounds.play_bank()
+
 func _on_hot_dice() -> void:
 	_set_notice("Hot dice — all six back, and the turn keeps its points", HINT_COLOR)
+	_banner.show_hot_dice()
+	_effects.shake(BoardEffects.MEDIUM)
+	_effects.flash(ScoreBanner.HOT_COLOR, 0.16)
+	_sounds.play_hot_dice()
 
 func _on_farkled(points_lost : int) -> void:
 	if points_lost > 0:
 		_set_notice("Farkle — %d points gone" % points_lost, FARKLE_COLOR)
 	else:
 		_set_notice("Farkle — nothing scored", FARKLE_COLOR)
+	_banner.show_farkle(points_lost)
+	_effects.shake(BoardEffects.HARD)
+	_effects.flash(FARKLE_COLOR)
+	_sounds.play_farkle()
 	_refresh()
+
+## What one turn of this level is expected to be worth. Both the shake and the
+## take sound scale against it rather than against a fixed number, so a big take
+## feels big on level 1 and on level 9 alike — the raw scores differ by an order
+## of magnitude between them.
+func _expected_per_turn() -> float:
+	var target := game.ruleset.get_target_score()
+	return maxf(1.0, float(target) / float(maxi(1, game.ruleset.turns)))
+
+func _shake_for(points : int) -> float:
+	return clampf(
+		BoardEffects.SOFT + float(points) / _expected_per_turn() * BoardEffects.MEDIUM,
+		BoardEffects.SOFT,
+		BoardEffects.HARD
+	)
 
 func _set_notice(text : String, color : Color) -> void:
 	_notice = text
