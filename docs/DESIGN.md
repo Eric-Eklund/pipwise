@@ -412,7 +412,57 @@ Farkle as the only limiter — the standard Farkle rule — and budgets the *lev
 by capping turns instead. Worth revisiting once the loop has been played: if
 turns feel too long, the cap comes back.
 
-### 3. MVP scope
+### 3. Two element rules are reinterpreted, four are transcribed
+
+§1.2's base column and §1.3's element rules were written against each other. Once
+single dice stop scoring on every face, two of the six elements no longer have
+anything to attach to, so they were re-aimed at the nearest thing that keeps their
+identity. The other four are the document's own wording.
+
+| Element | Built as | Against the document |
+| --- | --- | --- |
+| 🔥 Fire | Scored 6s pay +50% | exact |
+| ❄️ Ice | Dice in a matched set pay +100% | **reinterpreted** — "pairs +100%" has nothing to multiply, since a bare pair scores nothing |
+| ⚡ Lightning | Scored 4-6 pay double | exact |
+| 🌿 Nature | An even pip total returns a die | exact, but see below on *which* sum |
+| ☠️ Shadow | Halves the Farkle penalty | exact |
+| 💎 Crystal | Scored 1s pay triple | exact |
+
+The trios are the same story. Fire, Ice, Shadow and Crystal use the document's
+own lines. Lightning's trio repeated its own base rule word for word, so it
+escalates to tripling instead — the Lv5 line. Nature's trio was written about
+reroll costs, which this game does not have, so it takes the Lv5 line too.
+
+**Where a trio is counted** is a rule the document does not state: on the dice
+**in play**, all of them, set aside or not. §2.1's combo multiplier is counted on
+the dice that actually **scored**. The split is deliberate — a trio changes what
+is *possible* (Ice makes pairs score at all), so the player has to see it before
+choosing, while a combo rewards what they chose and can only be known after.
+
+### 4. Nature reads pips, not points
+
+§1.3 says "jämn summa" — even sum — without saying of what. Read as the point
+total it is not a condition at all: every entry in the scoring table is a multiple
+of fifty and every combo multiplier keeps it that way, so the total is even almost
+always, and Nature would quietly mean "a free die, every single turn".
+
+The build reads the **pips on the scored dice**. That is a real coin flip, it is
+the number the player is looking at, and it matches the word *sum* better than a
+multiplied, bonused, rounded score does.
+
+### 5. The rainbow bag is the weakest in the game
+
+Not a deviation so much as a consequence worth writing down, because it is the
+opposite of what the document implies. §7's "Elemental Balanced" build — one die
+of each element — reaches no trio and repeats no element, so **no** trio rule
+fires and §2.1's combo ladder never leaves ×1. It is strictly worse than six plain
+dice plus any three matching ones.
+
+The build only becomes what §7 describes once §2.3's mega combos exist, and
+Elemental Master is precisely the rule that fixes it. Until then the campaign does
+not hand the rainbow bag out, and a test pins that it does not.
+
+### 6. MVP scope
 
 The first playable slice is dice only: the turn loop, six elements, the §2.1
 combo ladder and the §2.2 trios at their level-1 tier, roughly ten levels and
@@ -424,7 +474,11 @@ Not built yet, in rough priority order: cards (§3), the shop and currencies
 see `CLAUDE.md` — but none of it is balanced or worth balancing until the core
 loop is known to be fun.
 
-### 4. Die levels are fixed at 1
+The campaign is ten levels rather than a hundred, so the bosses are compressed:
+the Ember Warden on 5 and the Fire Lord on 10, rather than the Fire Lord on 25.
+The other three bosses in §5.2 are unbuilt.
+
+### 7. Die levels are fixed at 1
 
 §1.3's per-level element scaling and §1.4's per-die upgrades are not in the MVP,
 so every element effect fires at its level-1 tier. `Die.level` exists and is
