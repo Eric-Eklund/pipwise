@@ -1,0 +1,35 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/game_scene/hud/score_hud.gd" id="1_scorehud"]
+
+[node name="ScoreHud" type="VBoxContainer"]
+theme_override_constants/separation = 2
+script = ExtResource("1_scorehud")
+
+[node name="ObjectiveLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Reach 300 points"
+horizontal_alignment = 1
+
+[node name="ProgressLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "0 / 300"
+horizontal_alignment = 1
+
+[node name="PlaysLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Plays left: 4"
+horizontal_alignment = 1
+
+[node name="LastHandLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = ""
+horizontal_alignment = 1
