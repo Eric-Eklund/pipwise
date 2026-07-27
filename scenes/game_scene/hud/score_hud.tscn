@@ -11,7 +11,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
-text = "Frost King"
+text = "Fire Lord"
 horizontal_alignment = 1
 autowrap_mode = 2
 
@@ -24,7 +24,7 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "Reach 71 points"
+text = "Bank 1900 points"
 horizontal_alignment = 1
 
 [node name="GuideButton" type="Button" parent="ObjectiveRow"]
@@ -32,19 +32,29 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(30, 30)
 layout_mode = 2
 size_flags_vertical = 4
-tooltip_text = "What each hand is worth"
+tooltip_text = "How scoring works"
 text = "?"
 
 [node name="ProgressLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 34
-text = "0 / 71"
+text = "0 / 1900"
 horizontal_alignment = 1
+
+[node name="TurnLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.66, 0.72, 1)
+theme_override_font_sizes/font_size = 14
+text = "Banked 0  ·  5 turns left"
+horizontal_alignment = 1
+autowrap_mode = 2
 
 [node name="BreakdownLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "(0 + 0) x1 = 0"
+theme_override_font_sizes/font_size = 15
+text = ""
 horizontal_alignment = 1
+autowrap_mode = 2

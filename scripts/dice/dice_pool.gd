@@ -1,106 +1,144 @@
 class_name DicePool
 extends RefCounted
-## The dice on the table: rolled together, held one at a time, rerolled as a set.
+## The dice a turn is played with: rolled together, set aside one at a time,
+## rolled again with whatever is left.
 ##
-## Replaces the old draw-and-discard DiceBag. Dice are no longer drawn — the
-## player brings the same six to every level, and the interesting decision is
-## which of them to pay to keep before spending a reroll on the rest.
+## The pool is the whole board state of a Farkle turn. Dice move in one
+## direction — in play, then set aside — and the only thing that moves them back
+## is hot dice, when everything has scored and the player gets all six again.
 ##
-## The pool never touches energy itself. It reports what it is showing and
-## GameContext prices it, so the cost rules stay in one place.
+## It knows nothing about scoring. What is worth setting aside is FarkleScorer's
+## business, and keeping that out of here is what lets an element rule change
+## what counts as a score without this class hearing about it.
 
 signal rolled(dice : Array[Die])
-signal lock_changed(die : Die)
+signal set_aside_changed(die : Die)
+## Every die came back to the table with the turn score intact.
+signal hot_dice
 
+## Every die the player owns this level, set aside or not.
 var dice : Array[Die] = []
-var rerolls_left : int = 0
+## How many rolls this turn has taken. The first one is 1.
+var roll_count : int = 0
 
 var _rng : RngService
 
-func _init(definition : BagDefinition, rng : RngService, max_rerolls : int = 3) -> void:
+func _init(definition : BagDefinition, rng : RngService) -> void:
 	_rng = rng
-	rerolls_left = maxi(0, max_rerolls)
 	for die_type in definition.dice:
 		dice.append(Die.new(die_type))
 
 func size() -> int:
 	return dice.size()
 
-## The opening roll. Ignores locks and freezes, because nothing is held yet.
-func roll_all() -> void:
+# --- what is where ---------------------------------------------------------
+
+## The dice still being rolled.
+func get_in_play() -> Array[Die]:
+	var result : Array[Die] = []
 	for die in dice:
-		die.roll(_rng)
-	rolled.emit(dice)
+		if not die.is_set_aside:
+			result.append(die)
+	return result
 
-## Rerolls everything the player has not held, and spends a reroll doing it.
-## Returns false when there is none left or nothing would change, so callers
-## can leave the button switched off rather than guess.
-func reroll_unheld() -> bool:
-	if not can_reroll():
-		return false
-	rerolls_left -= 1
+## The dice committed to this turn.
+func get_set_aside() -> Array[Die]:
+	var result : Array[Die] = []
 	for die in dice:
-		if not die.is_held():
-			die.roll(_rng)
-	rolled.emit(dice)
-	return true
+		if die.is_set_aside:
+			result.append(die)
+	return result
 
-func can_reroll() -> bool:
-	return rerolls_left > 0 and not get_unheld().is_empty()
+func in_play_count() -> int:
+	return get_in_play().size()
 
-## Every pip showing, added up. This one number is both the white energy the
-## player has to spend and the dice bonus the saved hand scores with.
+func set_aside_count() -> int:
+	return get_set_aside().size()
+
+## Every pip showing across the whole pool. The energy budget a level is given,
+## which is why it counts set aside dice too — the player's dice are their
+## resources whether or not they have been spent this turn.
 func total_value() -> int:
 	var total := 0
 	for die in dice:
 		total += die.get_value()
 	return total
 
-func locked_count() -> int:
-	var count := 0
-	for die in dice:
-		if die.is_locked:
-			count += 1
-	return count
+# --- rolling ---------------------------------------------------------------
 
-func frozen_count() -> int:
-	var count := 0
-	for die in dice:
-		if die.is_frozen:
-			count += 1
-	return count
+## Rolls everything still in play. Returns the dice it rolled, which is empty
+## only when the player has somehow set every die aside without the pool
+## noticing — a state hot dice is supposed to have already cleared.
+func roll() -> Array[Die]:
+	var rolling := get_in_play()
+	if rolling.is_empty():
+		return rolling
+	for die in rolling:
+		die.roll(_rng)
+	roll_count += 1
+	rolled.emit(rolling)
+	return rolling
 
-func get_unheld() -> Array[Die]:
-	var result : Array[Die] = []
-	for die in dice:
-		if not die.is_held():
-			result.append(die)
-	return result
+# --- setting aside ---------------------------------------------------------
 
-## Refuses rather than silently ignores a frozen die, so a caller that charged
-## energy for the lock can hand it back. Returns whether anything changed.
-func set_locked(die : Die, value : bool) -> bool:
-	if die.is_frozen or die.is_locked == value:
+## Commits one die to the turn. Returns false if it was already set aside, so a
+## caller that scored the selection first does not double-count it.
+func set_aside(die : Die) -> bool:
+	if die == null or die.is_set_aside:
 		return false
-	die.is_locked = value
-	lock_changed.emit(die)
+	die.is_set_aside = true
+	set_aside_changed.emit(die)
 	return true
 
-## Freezes [param count] dice picked at random, and returns the ones it froze.
-## Frost King's entire effect. A frozen die drops any lock it had, because the
-## player can no longer choose for it and should not keep paying for it.
-func freeze_random(count : int) -> Array[Die]:
-	var candidates : Array[Die] = []
-	for die in dice:
-		if not die.is_frozen:
-			candidates.append(die)
-	_rng.shuffle(candidates)
+## Takes a die back out of the turn. Only legal before the score is committed —
+## FarkleGame is what enforces that, since the pool has no notion of a score.
+func take_back(die : Die) -> bool:
+	if die == null or not die.is_set_aside:
+		return false
+	die.is_set_aside = false
+	set_aside_changed.emit(die)
+	return true
 
-	var frozen : Array[Die] = []
-	for i in mini(count, candidates.size()):
-		var die : Die = candidates[i]
-		die.is_frozen = true
-		die.is_locked = false
-		frozen.append(die)
-		lock_changed.emit(die)
-	return frozen
+func set_aside_all(selection : Array[Die]) -> int:
+	var count := 0
+	for die in selection:
+		if set_aside(die):
+			count += 1
+	return count
+
+## Hands [param count] dice back to the table, newest commitments first. Nature's
+## doing. Returns how many actually came back, which is fewer than asked when
+## the turn has not set that many aside yet.
+##
+## Newest first because those are the dice the player just chose, so the ones
+## coming back are the ones they are still looking at.
+func restore(count : int) -> int:
+	if count <= 0:
+		return 0
+	var restored := 0
+	for i in range(dice.size() - 1, -1, -1):
+		if restored >= count:
+			break
+		if dice[i].is_set_aside:
+			dice[i].is_set_aside = false
+			set_aside_changed.emit(dice[i])
+			restored += 1
+	return restored
+
+## Whether every die has been set aside, which is what earns hot dice.
+func is_exhausted() -> bool:
+	return in_play_count() == 0
+
+## Brings every die back for another roll with the turn score kept. The reward
+## for clearing the table, and the only way a turn can score more than six dice
+## are worth.
+func reset_for_hot_dice() -> void:
+	for die in dice:
+		die.is_set_aside = false
+	hot_dice.emit()
+
+## Clears the turn: everything back in play, roll count back to zero.
+func reset_turn() -> void:
+	for die in dice:
+		die.is_set_aside = false
+	roll_count = 0

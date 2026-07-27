@@ -10,7 +10,7 @@ extends SceneTree
 
 const CAMPAIGN_PATH := "res://resources/campaign.tres"
 const LEVEL_DIR := "res://scenes/game_scene/levels"
-const BASE_SCENE := "res://scenes/game_scene/levels/card_dice_level.tscn"
+const BASE_SCENE := "res://scenes/game_scene/levels/farkle_level.tscn"
 const ENDLESS_SCENE := "res://scenes/game_scene/levels/endless_level.tscn"
 const TUTORIAL_SCENE := "res://scenes/windows/tutorial_window.tscn"
 const GAME_UI_PATH := "res://scenes/game_scene/game_ui.tscn"

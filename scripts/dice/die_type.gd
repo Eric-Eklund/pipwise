@@ -1,13 +1,19 @@
 class_name DieType
 extends Resource
-## A kind of die: its faces, and optionally how likely each one is.
+## A kind of die: its faces, its element, and optionally how likely each face is.
 ##
-## Face count is not fixed at six — nothing in the engine assumes a d6.
+## Face count is not fixed at six — nothing in the engine assumes a d6, which is
+## the seam the design document's D8/D10/D12 evolution will come through.
 
 @export var id : StringName = &"basic"
 @export var faces : Array[DieFace] = []
 ## Per-face weights. Leave empty, or the wrong length, for a uniform die.
 @export var weights : Array[float] = []
+## The element every die of this type is minted with. See Element.
+@export var element : StringName = Element.NONE
+## The level every die of this type is minted at. The shop will hand out types
+## at higher levels rather than mutating the dice it sold.
+@export_range(1, 15) var level : int = 1
 
 func face_count() -> int:
 	return faces.size()

@@ -33,3 +33,13 @@ jobs:
         # run_tests.gd extends SceneTree and calls quit(1) on failure, which is
         # what lets this step fail the build.
         run: godot --headless --script res://tests/run_tests.gd
+
+      - name: Play every level scene
+        # The suite above never draws a frame, so it cannot see a board where
+        # the rules are fine and every button happens to be disabled. This plays
+        # each level through its own Take, Roll and Bank buttons and fails if any
+        # run deadlocks or never reaches a verdict.
+        #
+        # A scene rather than a --script: the levels reach GameState on ready,
+        # and the autoloads only exist when a scene is run.
+        run: godot --headless res://tools/playthrough_probe.tscn

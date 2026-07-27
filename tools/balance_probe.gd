@@ -3,114 +3,146 @@ extends SceneTree
 ##
 ##     godot --headless --script res://tools/balance_probe.gd
 ##
-## Plays every level many times with a deliberately unsophisticated strategy and
+## Plays every level many times with a deliberately unsophisticated bot and
 ## reports the clear rate and the score distribution. The bot is a *floor*, not
-## a model of a good player: it rerolls while that helps, then swaps whatever is
-## not part of a matched rank. A human should beat these numbers comfortably, so
-## a target the bot clears 50% of the time is a fair-feeling level rather than a
-## coin flip.
+## a model of a good player: it always takes every die that scores and banks on
+## a fixed threshold, never reading the board and never thinking about elements.
+## A human should beat these numbers comfortably, so a level the bot clears
+## about half the time is a fair-feeling one rather than a coin flip — the
+## design document asks for a 60% human win rate, and the bot sits below that
+## on purpose.
 ##
 ## This is what the level targets were set from. Rerun it after changing a
-## multiplier, a cost, or the number of dice — all three move the whole curve.
+## target, a turn count, a bag, or anything in the scoring table — all of them
+## move the whole curve.
 
 const RUNS := 400
+const TARGET_CLEAR_RATE := 0.50
+## A turn is banked once it is worth this share of what one turn needs to
+## contribute. Below 1.0 the bot is cautious, which is the point.
+const BANK_RATIO := 0.9
+## Never push into fewer than this many dice. Two dice Farkle far more often
+## than not, so a bot that keeps going is measuring its own recklessness rather
+## than the level.
+const MINIMUM_DICE_TO_PUSH := 3
 
 func _initialize() -> void:
 	var campaign : Campaign = load("res://resources/campaign.tres")
+	if campaign == null:
+		push_error("no campaign resource — run tools/generate_campaign.gd first")
+		quit(1)
+		return
+
+	print("Campaign — %d runs per level, bot banks at %d%% of a turn's share\n"
+		% [RUNS, int(BANK_RATIO * 100)])
+	_print_header("level")
 	for level in range(1, campaign.level_count + 1):
-		var ruleset := campaign.get_ruleset(level)
-		var target : int = ruleset.get_objective().target_score
-		var wins := 0
-		var totals : Array[int] = []
-		for run in RUNS:
-			var game := CardDiceGame.new(ruleset, RngService.new(run + 1))
-			game.start()
-			_play_greedily(game)
-			totals.append(game.context.score)
-			if game.state == CardDiceGame.State.WON:
-				wins += 1
-		totals.sort()
-		var notes : Array[String] = []
-		if not ruleset.boss_name.is_empty():
-			notes.append(ruleset.boss_name)
-		if ruleset.max_rerolls != 3:
-			notes.append("%d reroll%s" % [
-				ruleset.max_rerolls, "" if ruleset.max_rerolls == 1 else "s"
-			])
-		if ruleset.dice_count != 6:
-			notes.append("%d dice" % ruleset.dice_count)
-		if ruleset.hand_size != 5:
-			notes.append("%d cards" % ruleset.hand_size)
-		var objective := ruleset.get_objective()
-		if objective is RequiredCategoryObjective:
-			notes.append("needs %s" % PokerHandClassifier.category_name(
-				(objective as RequiredCategoryObjective).minimum_category
-			))
-		print("level %-2d  target %4d   win %5.1f%%   median %4d%s" % [
-			level, target, 100.0 * wins / RUNS, totals[RUNS / 2],
-			"" if notes.is_empty() else "   [%s]" % ", ".join(notes),
-		])
+		_report(campaign.get_ruleset(level), str(level))
+
+	# Endless is not flagged. It is *meant* to slide from comfortable to
+	# impossible — that slide is the mode — so measuring it against a fixed
+	# clear rate would mark every row and tell nobody anything. Read the column
+	# instead: the round where it crosses 50% is roughly where a run ends.
+	print("\nEndless")
+	_print_header("round")
+	var endless := EndlessRun.new()
+	for round_number in [1, 3, 5, 8, 12, 20]:
+		_report(endless.get_ruleset(round_number), str(round_number), false)
+
 	quit(0)
 
-## Reroll while it helps, pay off whatever the boss demands, then spend what is
-## left swapping the weakest cards that are not part of a matched rank.
-## Deliberately unsophisticated — this is a floor, not a ceiling.
-func _play_greedily(game : CardDiceGame) -> void:
-	for _i in 3:
-		if not game.can_reroll():
-			break
-		var before := game.context.total_energy()
-		game.reroll()
-		if game.context.total_energy() < before:
-			break
+func _print_header(first : String) -> void:
+	print("%-6s %-16s %7s %6s %6s %8s %8s %8s"
+		% [first, "twist", "target", "turns", "clear", "median", "p25", "p75"])
 
-	# Mandatory locks come out of the budget before any of it is spent on
-	# cards. Swapping first and discovering the locks are unaffordable is how a
-	# player loses a level to bookkeeping rather than to the dice.
-	_satisfy_save_requirements(game)
+## Plays one ruleset RUNS times and prints a row.
+func _report(ruleset : Ruleset, label : String, flag_off_target : bool = true) -> void:
+	var wins := 0
+	var totals : Array[int] = []
+	for run in RUNS:
+		var game := FarkleGame.new(ruleset, RngService.new(run + 1))
+		game.start()
+		_play(game)
+		totals.append(game.context.banked_score)
+		if game.state == FarkleGame.State.WON:
+			wins += 1
+	totals.sort()
 
-	for _round in 4:
-		var junk := _unpaired_cards(game)
-		if junk.is_empty():
-			break
-		game.context.hand.clear_selection()
-		var marked := 0
-		for card in junk:
-			if not game.context.can_afford((marked + 1) * game.swap_cost()):
-				break
-			game.context.hand.toggle_selection(card)
-			marked += 1
-		if marked == 0 or not game.swap_selected():
-			break
-	game.context.hand.clear_selection()
+	var clear_rate := float(wins) / float(RUNS)
+	var off_target := absf(clear_rate - TARGET_CLEAR_RATE) > 0.15
+	var flag := "  <-- retune" if flag_off_target and off_target else ""
 
-	# A reroll during the swaps could in principle have moved the requirement,
-	# so check once more before committing.
-	_satisfy_save_requirements(game)
-	game.save_hand()
+	print("%-6s %-16s %7d %6d %5d%% %8d %8d %8d%s" % [
+		label,
+		ruleset.boss_name.substr(0, 16),
+		ruleset.get_target_score(),
+		ruleset.turns,
+		int(round(clear_rate * 100.0)),
+		_percentile(totals, 0.5),
+		_percentile(totals, 0.25),
+		_percentile(totals, 0.75),
+		flag,
+	])
 
-## Locks dice until the level will accept the hand. Gives up rather than
-## looping if nothing can be locked, which shows up as a loss.
-func _satisfy_save_requirements(game : CardDiceGame) -> void:
-	while not game.can_save_hand():
-		var locked := false
-		for die in game.get_dice():
-			if not die.is_locked and game.toggle_lock(die):
-				locked = true
-				break
-		if not locked:
+## Drives a game to a win or a loss. Deliberately simple — every decision the
+## bot does not make is difficulty it is not hiding from the measurement.
+func _play(game : FarkleGame) -> void:
+	# The loop cannot run forever on its own: a turn either banks or Farkles,
+	# and both end it. The guard is against a rule change that breaks that,
+	# because a probe that hangs looks exactly like a probe that is slow.
+	var guard := 0
+	var limit := 2000
+	while guard < limit:
+		guard += 1
+		match game.state:
+			FarkleGame.State.FARKLED:
+				game.continue_after_farkle()
+				continue
+			FarkleGame.State.CHOOSING:
+				pass
+			_:
+				return
+
+		if game.get_scorable_dice().is_empty():
+			# _roll already turns a genuine Farkle into State.FARKLED, so this
+			# is a boss that has filtered every scoring die away. Nothing the
+			# bot does from here changes anything.
 			return
 
-## The cards not contributing to any matched rank, lowest value first.
-func _unpaired_cards(game : CardDiceGame) -> Array[Card]:
-	var counts : Dictionary = {}
-	for card in game.context.hand.cards:
-		counts[card.data.rank] = int(counts.get(card.data.rank, 0)) + 1
-	var junk : Array[Card] = []
-	for card in game.context.hand.cards:
-		if int(counts[card.data.rank]) == 1:
-			junk.append(card)
-	junk.sort_custom(func(a : Card, b : Card) -> bool:
-		return PokerHandClassifier.card_value(a.data.rank) \
-			< PokerHandClassifier.card_value(b.data.rank))
-	return junk
+		game.select_all_scoring()
+		if not game.commit_selection():
+			return
+		if game.state != FarkleGame.State.CHOOSING:
+			continue
+
+		if _should_bank(game):
+			# A blocked bank means a minimum the turn has not reached, so the
+			# only move left is to push into it.
+			if not game.bank() and not game.push():
+				return
+		elif not game.push() and not game.bank():
+			return
+
+	push_error("bot failed to finish a level of %s" % game.ruleset.id)
+
+## Banks once the turn has earned its share of the target, or once pushing would
+## mean rolling too few dice to be worth it.
+func _should_bank(game : FarkleGame) -> bool:
+	if not game.can_bank():
+		return false
+	if game.context.pool.in_play_count() < MINIMUM_DICE_TO_PUSH:
+		return true
+
+	var target := game.ruleset.get_target_score()
+	if target <= 0:
+		return true
+	var share := float(target) / float(maxi(1, game.ruleset.turns))
+	return float(game.context.turn_score) >= share * BANK_RATIO
+
+func _percentile(sorted_values : Array[int], fraction : float) -> int:
+	if sorted_values.is_empty():
+		return 0
+	var index := clampi(
+		int(floor(fraction * float(sorted_values.size()))), 0, sorted_values.size() - 1
+	)
+	return sorted_values[index]

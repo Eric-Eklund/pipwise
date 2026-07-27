@@ -34,6 +34,10 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 	var scene := packed.instantiate()
+	# Set before the scene enters the tree, because _ready() is what rolls the
+	# opening dice — a seed applied afterwards would come one roll too late.
+	if args.has("seed") and scene is FarkleLevel:
+		(scene as FarkleLevel).rng_seed = int(args["seed"])
 	add_child(scene)
 	await get_tree().process_frame
 	_drive(scene, args)
@@ -57,22 +61,25 @@ func _ready() -> void:
 	print("wrote %s (%dx%d)" % [out_path, image.get_width(), image.get_height()])
 	get_tree().quit(0)
 
-## Puts a level into a particular state before the shot, so the marked-card and
-## locked-die styling can be checked and not just the opening deal.
+## Puts a level into a particular state before the shot, so the marked and set
+## aside styling can be checked and not just the opening roll.
 ##
-##     --select=0,1  mark those cards for swapping
-##     --lock=2      pay to keep that die
-##     --guide=1     open the hand guide
+##     --seed=7      reproduce a particular roll
+##     --mark=0,1    mark those dice
+##     --take=1      commit whatever is marked, or everything that scores
+##     --guide=1     open the scoring guide
 func _drive(scene : Node, args : Dictionary) -> void:
-	var level := scene as CardDiceLevel
+	var level := scene as FarkleLevel
 	if level == null or level.game == null:
 		return
-	for index in _parse_indices(String(args.get("select", ""))):
-		if index < level.game.context.hand.size():
-			level.game.context.hand.toggle_selection(level.game.context.hand.cards[index])
-	for index in _parse_indices(String(args.get("lock", ""))):
-		if index < level.game.get_dice().size():
-			level.game.toggle_lock(level.game.get_dice()[index])
+	for index in _parse_indices(String(args.get("mark", ""))):
+		var dice := level.game.get_dice()
+		if index < dice.size():
+			level.game.toggle_selection(dice[index])
+	if args.has("take"):
+		if level.game.get_selection().is_empty():
+			level.game.select_all_scoring()
+		level.game.commit_selection()
 	if args.has("guide"):
 		var button := level.find_child("GuideButton", true, false) as Button
 		if button != null:
