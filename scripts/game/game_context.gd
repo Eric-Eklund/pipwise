@@ -34,10 +34,16 @@ var turn_limit : int = 0
 ## record that a turn went badly once its points are gone.
 var farkle_count : int = 0
 
-## Energy already committed. Cards are not in the MVP, so nothing spends this
-## yet — the accounting is kept because the design document's energy is the sum
-## of the dice, which this already is, and deleting it would mean rebuilding it.
+## Energy already committed to cards this turn. Reset by advance_turn().
 var energy_spent : int = 0
+## What this turn's dice were worth when the turn began. Section 4's "energy =
+## the sum of the dice symbols", taken once rather than continuously.
+##
+## It has to be a snapshot. Read live it would move under the player mid-turn:
+## spend nine on a potion, push into a worse roll, and the budget that paid for
+## it would shrink below what was already spent. A number you cannot plan against
+## is not a currency, and the whole point of energy is planning a turn around it.
+var energy_budget : int = 0
 
 func _init(game_pool : DicePool, game_rng : RngService) -> void:
 	pool = game_pool
@@ -94,10 +100,16 @@ func has_turns_left() -> bool:
 
 # --- energy ----------------------------------------------------------------
 
-## Every pip the player's dice are showing. The design document's "energy = sum
-## of the dice symbols", waiting for the cards that will spend it.
+## Takes this turn's budget from the dice on the table. Called once a turn, after
+## the opening roll — before it there are no faces to count.
+func snapshot_energy() -> void:
+	energy_budget = pool.total_value()
+	energy_changed.emit()
+
+## What this turn has to spend, budget and all. Set aside dice still count: the
+## player's dice are their resources whether or not the turn has committed them.
 func total_energy() -> int:
-	return pool.total_value()
+	return energy_budget
 
 func available_energy() -> int:
 	return maxi(0, total_energy() - energy_spent)
@@ -118,5 +130,7 @@ func refund_energy(amount : int) -> void:
 	energy_spent = maxi(0, energy_spent - amount)
 	energy_changed.emit()
 
+## A roll no longer moves the budget — it was taken at the top of the turn — but
+## it does change what the dice are worth, and the HUD draws both from here.
 func _on_pool_rolled(_dice : Array[Die]) -> void:
 	energy_changed.emit()

@@ -29,6 +29,29 @@ func test_a_run_cannot_be_started_anywhere_but_the_beginning() -> void:
 	assert_true(arguments.is_empty(), "create() must not take a starting level")
 	assert_eq(RunState.create().level, 1, "and every run begins at the beginning")
 
+# --- cards -----------------------------------------------------------------
+
+func test_a_new_run_is_dealt_an_opening_hand() -> void:
+	var run := RunState.create()
+	assert_eq(run.hand.size(), 5, "section 3.7's five")
+	assert_false(run.deck.is_empty(), "and a deck to draw from")
+
+func test_the_hand_round_trips_through_the_run() -> void:
+	var run := RunState.create()
+	var card_hand := run.build_hand()
+	assert_eq(card_hand.hand, run.hand, "same cards")
+	card_hand.draw(1)
+	run.store_hand(card_hand)
+	assert_eq(run.hand, card_hand.hand, "and what was drawn is written back")
+
+## Cards belong to the attempt. A hand that survived a loss would be the same
+## mistake a checkpoint was — the next run starting with something it did not
+## earn.
+func test_a_fresh_run_is_dealt_a_fresh_hand() -> void:
+	var first := RunState.create()
+	var second := RunState.create()
+	assert_ne(first.deck_seed, second.deck_seed, "a new run, a new deal")
+
 func test_clearing_a_level_advances_and_banks() -> void:
 	var run := RunState.create()
 	run.clear_level(1900, 2)

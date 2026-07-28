@@ -474,9 +474,14 @@ The first playable slice is dice only: the turn loop, six elements, the §2.1
 combo ladder and the §2.2 trios at their level-1 tier, roughly ten levels and
 endless mode.
 
-Not built yet, in rough priority order: cards (§3), the shop and currencies
-(§6), per-die levelling (§1.4), dice evolution and D8+ (§1.2), and the drop
-tables (§5.3). The engine seams they will attach to exist —
+Cards arrived after the dice: §3's Scrolls and Potions are built, which is §4's
+step 3 and the last thing missing from the shape of a turn. Artifacts, Spells and
+Relics are not — see deviation 8 for which of them can be transcribed and which
+need rules that do not exist yet.
+
+Not built yet, in rough priority order: the rest of the cards (§3.4-3.6), the
+shop and currencies (§6), per-die levelling (§1.4), dice evolution and D8+
+(§1.2), and the drop tables (§5.3). The engine seams they will attach to exist —
 see `CLAUDE.md` — but none of it is balanced or worth balancing until the core
 loop is known to be fun.
 
@@ -530,7 +535,43 @@ search has no way to decline one.
 **Overload's +5000 is paid outside the multiplier.** Inside it, on the only hand
 that can fire it, it would be +25000 and the number would stop meaning anything.
 
-### 8. Die levels are fixed at 1
+### 8. Seven cards do nothing in this build, and are not built
+
+§3 lists 28 cards. Ten are built — the Scrolls and the Potions, §4's missing
+step 3 — and the rest wait. But seven of them cannot simply be transcribed later,
+because they are written against rules this build does not have. Recorded here so
+the next slice does not ship them dead.
+
+| Card | Decision | Why |
+| --- | --- | --- |
+| Reroll Token, Forest Charm | **Dropped** | Rerolls are unlimited and free here (deviation 2). "+1 free reroll" is +1 of something you already have infinitely |
+| Coin Boost | **Dropped** | There is no currency (§6 unbuilt) |
+| Ice Scepter | Deferred | "Ice pairs count as triples" *is* the Ice trio, exactly. Needs a different effect before it can be an artifact |
+| Crystal Focus | **Reworked** | "Triples all 1s" is already Crystal's base rule. Built as "doubles Crystal's bonus" |
+| Shadow Veil | **Reworked** | "+100% Farkle points" doubles zero — a Farkle costs points here, it does not pay them, unless three Shadow dice are out. Built as "a Farkle pays you this turn", which is the trio's effect bought for one turn |
+| Phoenix Feather | Deferred | "Death costs half your items" — death costs no items. The dice collection is permanent |
+| Dragon Heart | Deferred | Needs the wild mechanic deliberately not built for Elemental Master (deviation 7) |
+
+The trap worth naming: a uniform potion — "double your element's bonus" — reads
+like it would cover all six neatly, and it is dead for two of them. **Nature and
+Shadow pay no points at all**; Nature returns dice and Shadow softens a bust.
+Four potions are the uniform kind and two are their own effects, which is why
+`ElementBoostCard` covers Fire, Ice, Lightning and Crystal and no more.
+
+**A card's "one round" is one turn**, not one level. §4's stage flow reads as a
+level, but its steps are a single push-your-luck sequence, which is a turn here.
+
+**Energy is a per-turn budget, taken once.** §4 sets it at "stage start". Read
+live it moves under the player mid-turn — spend nine, push into a worse roll, and
+the budget that paid for it drops below what was already spent. A number you
+cannot plan against is not a currency.
+
+**Card targets are measured card-free.** `tools/balance_probe.gd`'s bot is dealt
+no hand at all, so the campaign's clear rates describe a player who never plays
+one. That is deliberate and worth keeping: it means no level can ever *require* a
+card, and everything the hand does is upside.
+
+### 9. Die levels are fixed at 1
 
 §1.3's per-level element scaling and §1.4's per-die upgrades are not in the MVP,
 so every element effect fires at its level-1 tier. `Die.level` exists and is

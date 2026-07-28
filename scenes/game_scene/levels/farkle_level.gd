@@ -21,6 +21,10 @@ const FARKLE_COLOR := Color(0.90, 0.44, 0.36)
 ## on screen the player cannot work out by looking at the dice.
 const COMBO_HINT_COLOR := Color(0.70, 0.53, 1.0)
 
+## Section 3.7's draws for clearing a level, and for clearing a boss.
+const LEVEL_DRAW := 2
+const BOSS_DRAW := 3
+
 ## Which level of the campaign this is. Every level scene sets only this; the
 ## Campaign works out the rest.
 @export_range(1, 200) var level_number : int = 1
@@ -53,6 +57,7 @@ var _notice_color : Color = HINT_COLOR
 @onready var _effects : BoardEffects = %BoardEffects
 @onready var _sounds : BoardSounds = %BoardSounds
 @onready var _hint_label : Label = %HintLabel
+@onready var _card_row : CardRow = %CardRow
 @onready var _take_button : Button = %TakeButton
 @onready var _roll_button : Button = %RollButton
 @onready var _bank_button : Button = %BankButton
@@ -60,6 +65,7 @@ var _notice_color : Color = HINT_COLOR
 func _ready() -> void:
 	super()
 	_dice_tray.die_pressed.connect(_on_die_pressed)
+	_card_row.card_pressed.connect(_on_card_pressed)
 	_score_hud.guide_requested.connect(_on_guide_requested)
 	# The banner parks itself above the tray, and the tray moves whenever the
 	# set aside row appears or the window changes shape.
@@ -81,6 +87,10 @@ func _ready() -> void:
 ## signal connections die with it and do not need unhooking.
 func start_round(round_ruleset : Ruleset) -> void:
 	game = FarkleGame.new(round_ruleset, RngService.new(rng_seed))
+	# Campaign levels are played inside a run and hold its cards. Endless is not
+	# part of a run, so it gets no hand and the row hides itself.
+	if campaign != null:
+		game.hand = GameState.get_run().build_hand()
 
 	_score_hud.bind_game(game)
 	game.dice_changed.connect(_refresh)
@@ -91,6 +101,7 @@ func start_round(round_ruleset : Ruleset) -> void:
 	game.banked.connect(_on_banked)
 	game.farkled.connect(_on_farkled)
 	game.hot_dice.connect(_on_hot_dice)
+	game.card_played.connect(_on_card_played)
 	game.turn_started.connect(_on_turn_started)
 	game.level_won.connect(_on_level_won)
 	game.level_lost.connect(_on_level_lost)
@@ -168,6 +179,10 @@ func _on_bank_button_pressed() -> void:
 	_clear_notice()
 	game.bank()
 
+func _on_card_pressed(card : Card) -> void:
+	_clear_notice()
+	game.play_card(card)
+
 # --- feedback ---------------------------------------------------------------
 
 func _on_rolled() -> void:
@@ -190,6 +205,22 @@ func _on_took(score : DiceScore, dice : Array[Die]) -> void:
 func _on_banked(points : int) -> void:
 	_banner.show_banked(points)
 	_sounds.play_bank()
+
+## The hand is written back on every play rather than at the end of the level. A
+## level can be quit from, and a card the player spent that came back because
+## they closed the app is worse than no card system at all.
+func _on_card_played(card : Card) -> void:
+	_set_notice("%s — %s" % [card.get_label(), card.description], card.get_color())
+	_banner.show_card(card)
+	_effects.flash(card.get_color(), 0.12)
+	_sounds.play_take(0, 1.0, 0)
+	_save_hand()
+
+func _save_hand() -> void:
+	if campaign == null or game.hand == null:
+		return
+	GameState.get_run().store_hand(game.hand)
+	GlobalState.save()
 
 func _on_hot_dice() -> void:
 	_set_notice("Hot dice — all six back, points intact", HINT_COLOR)
@@ -240,6 +271,7 @@ func _show_hint(text : String, color : Color) -> void:
 
 func _refresh() -> void:
 	_dice_tray.refresh_state(game)
+	_card_row.refresh(game)
 	_place_banner()
 	_refresh_buttons()
 	_refresh_hint()
@@ -358,9 +390,24 @@ func _show_tutorial_once() -> void:
 func _on_level_won() -> void:
 	_record_result(true)
 	_grant_dice()
+	_draw_between_levels()
 	GameState.get_run().clear_level(game.context.banked_score, game.context.farkle_count)
 	GlobalState.save()
 	win()
+
+## Section 3.7's two cards between levels, three after a boss.
+##
+## Paid here beside the dice, because clearing a level is the one moment the
+## campaign hands anything out and having two places to look for that is how the
+## two drift apart.
+func _draw_between_levels() -> void:
+	if campaign == null or game.hand == null:
+		return
+	var count := BOSS_DRAW if campaign.is_boss(level_number) else LEVEL_DRAW
+	var drawn := game.hand.draw(count)
+	_save_hand()
+	if not drawn.is_empty():
+		_set_notice("Drew %d card%s" % [drawn.size(), "" if drawn.size() == 1 else "s"], HINT_COLOR)
 
 ## Clearing a level pays the dice it showed you, permanently.
 ##

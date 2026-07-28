@@ -27,11 +27,53 @@ extends Resource
 ## whether the player is pushing too hard.
 @export var farkles : int = 0
 
+## The cards in hand and the deck they come off, as ids.
+##
+## Ids rather than resources, which is the same shape GameState.loadout uses for
+## dice. A saved Array[StringName] is a line of text; a saved array of Card
+## sub-resources is a pile of them inlined into the save file, and every rename
+## afterwards is a migration.
+##
+## Note what these are *not* called. A test walks this resource's properties and
+## fails any name holding "dice" or "collection", because the line between what a
+## run owns and what survives it is the whole of the rogue-lite. Cards are the
+## run's; they go when it does.
+@export var hand : Array[StringName] = []
+@export var deck : Array[StringName] = []
+## Seeds the reshuffle when the deck runs dry. Stored so that a run reproduces
+## from its seed, cards included.
+##
+## A second reshuffle inside one run would repeat the first one's order. A full
+## deck is eighteen cards and a whole campaign draws about twenty-three, so it
+## happens at most once and never twice — not worth a counter to fix.
+@export var deck_seed : int = 0
+
 ## A fresh run, always at level 1. Takes no starting level on purpose: a run that
 ## could begin anywhere is a run that can be resumed, and resuming is what this
 ## design gave up.
+## Still takes nothing, including a seed. The test on this signature is about
+## resuming, but it is asserted on the argument list rather than on the value, so
+## the deck has to seed itself in here rather than be handed one.
 static func create() -> RunState:
-	return RunState.new()
+	var run := RunState.new()
+	var rng := RngService.new()
+	run.deck_seed = rng.get_seed()
+	run.store_hand(CardHand.create(rng))
+	return run
+
+# --- cards -----------------------------------------------------------------
+
+## The run's cards as something playable. Rebuilt per level rather than held,
+## because RunState is saved data and CardHand is runtime state.
+func build_hand() -> CardHand:
+	return CardHand.restore(hand, deck, RngService.new(deck_seed))
+
+## Writes a hand back after a level has drawn from or played out of it.
+func store_hand(card_hand : CardHand) -> void:
+	if card_hand == null:
+		return
+	hand = card_hand.hand.duplicate()
+	deck = card_hand.deck.duplicate()
 
 func clear_level(banked : int, farkle_count : int) -> void:
 	score += banked

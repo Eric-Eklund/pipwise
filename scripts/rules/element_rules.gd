@@ -56,11 +56,20 @@ const SHADOW_TRIO_FARKLE_REWARD := 50
 ## How many dice of each element are in play, keyed by element.
 var counts : Dictionary = {}
 
-func _init(dice_in_play : Array[Die] = []) -> void:
+## The cards played this turn and still in force.
+##
+## They live here rather than in the scorer for the same reason the elements do:
+## the scorer asks what a selection is worth and must not be the thing that
+## decides. A card changes what an element pays, so it is folded in beside the
+## element it changes and FarkleScorer never learns cards exist.
+var active_cards : Array[Card] = []
+
+func _init(dice_in_play : Array[Die] = [], played_cards : Array[Card] = []) -> void:
 	for die in dice_in_play:
 		if die == null:
 			continue
 		counts[die.element] = int(counts.get(die.element, 0)) + 1
+	active_cards = played_cards.duplicate()
 
 ## Whether taking fewer dice could ever be worth more than taking all of them,
 ## which is what tells FarkleScorer.best_of() whether it has to search at all.
@@ -102,7 +111,17 @@ func pairs_score() -> bool:
 ## The percentage bonus one die adds to its own share of its part, as a
 ## fraction. Elements that do not touch the score at all — Nature and Shadow —
 ## return zero here and are answered by the two functions below instead.
+## A potion multiplies its own element's share and nothing else, so playing Fire
+## Brew on a board of Ice dice is a wasted card rather than a quiet global buff.
 func die_bonus_fraction(die : Die, part : ScorePart) -> float:
+	var fraction := _base_die_bonus_fraction(die, part)
+	if fraction == 0.0:
+		return 0.0
+	for card in active_cards:
+		fraction *= card.element_bonus_multiplier(die.element)
+	return fraction
+
+func _base_die_bonus_fraction(die : Die, part : ScorePart) -> float:
 	if die == null or part == null:
 		return 0.0
 	match die.element:
@@ -204,18 +223,37 @@ func dice_restored(scored_dice : Array[Die]) -> int:
 			has_nature = true
 	if not has_nature or pip_sum <= 0 or pip_sum % 2 != 0:
 		return 0
-	return 2 if has_trio(Element.NATURE) else 1
+	var restored := 2 if has_trio(Element.NATURE) else 1
+	# Earth Restore adds to the trio rather than replacing it, so three Nature
+	# dice and the card hand back four.
+	for card in active_cards:
+		restored += card.dice_restored_bonus()
+	return restored
 
 ## What a Farkle actually costs, given a penalty the level wanted to charge.
 ## Shadow softens it, and three Shadow dice turn it into a reward — which is the
 ## whole point of the element: it makes pushing your luck cheap enough to be
 ## reckless with.
 func farkle_penalty(base_penalty : int) -> int:
+	# Shadow Veil buys the trio's effect for one turn. Checked first, because a
+	# card the player paid for should not be quietly outranked by the dice.
+	for card in active_cards:
+		if card.farkle_pays():
+			return -SHADOW_TRIO_FARKLE_REWARD
 	if has_trio(Element.SHADOW):
 		return -SHADOW_TRIO_FARKLE_REWARD
 	if count_of(Element.SHADOW) > 0:
 		return int(round(base_penalty * 0.5))
 	return base_penalty
+
+## Whether a card is holding the turn open through a roll that scored nothing.
+## Shield's whole effect, asked by FarkleGame rather than by the scorer — a bust
+## is a turn event, not a scoring one.
+func blocks_farkle() -> bool:
+	for card in active_cards:
+		if card.blocks_farkle():
+			return true
+	return false
 
 ## The trios currently firing, in Element.ALL order. The HUD lists these.
 func active_trios() -> Array[StringName]:

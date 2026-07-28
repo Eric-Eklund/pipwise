@@ -37,6 +37,9 @@ signal took(score : DiceScore, dice : Array[Die])
 signal farkled(points_lost : int)
 signal banked(points : int)
 signal hot_dice
+## A card was paid for and played. Carries the card so the row can animate the
+## one that went rather than redrawing the whole hand.
+signal card_played(card : Card)
 signal turn_started(turn : int)
 signal state_changed(new_state : State)
 signal level_won
@@ -62,8 +65,16 @@ var selection_score : DiceScore
 ## because a trio depends on what is on the table.
 var rules : ElementRules
 
+## The cards the player is holding. Null in endless mode, which is not part of a
+## run and so has no hand — every card path checks for that rather than assuming
+## a run exists.
+var hand : CardHand
+
 var _rng : RngService
 var _objective : Objective
+## Cards played this turn and still in force. Cleared at the top of every turn:
+## section 3 calls their duration "one round", and a round here is a turn.
+var _active_cards : Array[Card] = []
 ## Dice the player has marked but not yet committed. Marking is reversible;
 ## committing is not, which is why the two are separate.
 var _selection : Array[Die] = []
@@ -116,11 +127,15 @@ func start() -> void:
 ## Rolls for a new turn: everything back on the table, nothing riding yet.
 func _begin_turn() -> void:
 	context.pool.reset_turn()
+	_active_cards.clear()
 	_clear_selection()
 	for modifier in ruleset.modifiers:
 		modifier.on_turn_start(context)
 	turn_started.emit(context.turn)
 	_roll()
+	# After the roll, not before: the budget is the pips on the table, and before
+	# the roll there are none. Pushing later in the turn does not re-take it.
+	context.snapshot_energy()
 
 # --- rolling ---------------------------------------------------------------
 
@@ -129,7 +144,7 @@ func _roll() -> void:
 	context.pool.roll()
 	_clear_selection()
 	# After the roll: a trio depends on the dice that are on the table now.
-	rules = ElementRules.new(get_dice_in_play())
+	rules = ElementRules.new(get_dice_in_play(), _active_cards)
 	rolled.emit()
 	dice_changed.emit()
 
@@ -286,6 +301,62 @@ func commit_selection() -> bool:
 	_refresh_selection_score()
 	return true
 
+# --- cards -----------------------------------------------------------------
+
+## The cards the player could play right now. What the row draws.
+##
+## Spelled out rather than a ternary: `a if b else [] as Array[Card]` builds an
+## untyped array on the empty branch, and the row assigns the result straight
+## into an Array[Card].
+func get_hand() -> Array[Card]:
+	if hand == null:
+		var empty : Array[Card] = []
+		return empty
+	return hand.get_cards()
+
+## The cards in force this turn. Read by the HUD, and by anything rebuilding the
+## element rules after the board changed under them.
+func get_active_cards() -> Array[Card]:
+	return _active_cards.duplicate()
+
+## Whether [param card] can be played: the turn is live, it is in hand, the
+## energy is there, and the card itself is willing.
+##
+## Only during CHOOSING. A card played on a busted board would be paying to
+## change a roll that has already failed, and Shield is bought *before* the roll
+## it protects for exactly that reason — otherwise pushing is free and the game
+## loses its core.
+func can_play_card(card : Card) -> bool:
+	if card == null or hand == null or state != State.CHOOSING:
+		return false
+	if not hand.holds(card.id):
+		return false
+	if not context.can_afford(card.energy_cost):
+		return false
+	return card.can_play(self)
+
+## Pays for a card and plays it. The energy goes first, then the card leaves the
+## hand, then it takes effect — in that order, so a card that draws cards cannot
+## draw itself back and a refused play has already cost nothing.
+func play_card(card : Card) -> bool:
+	if not can_play_card(card):
+		return false
+
+	context.spend_energy(card.energy_cost)
+	hand.discard(card.id)
+	_active_cards.append(card)
+	card.on_played(self)
+
+	# Rebuilt rather than mutated, because the scoring cache is keyed on this
+	# object's identity — without a new one the Take button would go on offering
+	# the pre-card answer until the next roll.
+	rules = ElementRules.new(get_dice_in_play(), _active_cards)
+
+	card_played.emit(card)
+	dice_changed.emit()
+	_refresh_selection_score()
+	return true
+
 # --- banking ---------------------------------------------------------------
 
 func can_bank() -> bool:
@@ -327,8 +398,23 @@ func bank() -> bool:
 
 ## Nothing on the table scores. The turn's points are gone, and the level may
 ## charge for it on top.
+## Shield banks the turn instead of losing it. The table still holds nothing
+## worth taking, so the turn is over either way — what the card buys is keeping
+## what was already earned.
+##
+## It deliberately does not hand the roll back. Leaving the player in CHOOSING
+## would let them push again off dice they had already set aside, and a free
+## retry after a bust is the one thing Farkle must never allow — it is the same
+## reason can_push() refuses to roll without a commitment.
 func _farkle() -> void:
 	var lost := context.turn_score
+	if rules.blocks_farkle() and lost > 0:
+		var saved := context.bank_turn_score()
+		_set_state(State.FARKLED)
+		farkled.emit(0)
+		banked.emit(saved)
+		score_changed.emit()
+		return
 	context.lose_turn_score(rules.farkle_penalty(ruleset.farkle_penalty))
 	_set_state(State.FARKLED)
 	farkled.emit(lost)
