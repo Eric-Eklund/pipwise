@@ -43,3 +43,11 @@ jobs:
         # A scene rather than a --script: the levels reach GameState on ready,
         # and the autoloads only exist when a scene is run.
         run: godot --headless res://tools/playthrough_probe.tscn
+
+      - name: Lose every level and check there is a way out
+        # The step above drives level scenes in isolation, so it never reaches
+        # LevelManager — and the loss handler lives there. That gap is how a
+        # crash on losing shipped and left the board frozen with no window and
+        # every button dead. This loses each level both ways and fails unless
+        # the player is left something to press.
+        run: godot --headless res://tools/run_probe.tscn

@@ -253,10 +253,21 @@ func _refresh_buttons() -> void:
 	_take_button.text = _take_text()
 
 	_roll_button.disabled = not farkled and not game.can_push()
-	_roll_button.text = "Next turn" if farkled else "Roll again"
+	_roll_button.text = _farkle_button_text() if farkled else "Roll again"
 
 	_bank_button.disabled = farkled or not game.can_bank()
 	_bank_button.text = _bank_text()
+
+## What acknowledging a Farkle actually does. On the last turn it does not start
+## another one — it ends the level — and the button said "Next turn" anyway. A
+## button that names a turn the player is not going to get is the game lying at
+## the exact moment they most need to know where they stand.
+##
+## Read off the turn count rather than off the score, because Farkle has no
+## points ceiling: with a turn left, no deficit is provably out of reach, and
+## only "there is no turn left" is ever certain.
+func _farkle_button_text() -> String:
+	return "End level" if game.context.turns_left() == 1 else "Next turn"
 
 ## Taking is offered when something is marked, and also when nothing is marked
 ## but something could be — the button takes everything in that case.

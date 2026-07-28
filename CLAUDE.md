@@ -8,12 +8,13 @@ README explains the game; this file is how to work on it.
 ```
 godot --headless --script res://tests/run_tests.gd       # the engine suite
 godot --headless res://tools/playthrough_probe.tscn      # every level, through its buttons
+godot --headless res://tools/run_probe.tscn              # losing, and getting out of it
 godot --headless --script res://tools/balance_probe.gd   # the difficulty curve
 godot --headless --script res://tools/generate_campaign.gd
 godot --headless --script res://tools/generate_sfx.gd    # the sound effects
 ```
 
-The first two run in CI. Note which are scenes and which are scripts: anything
+The first three run in CI. Note which are scenes and which are scripts: anything
 that instantiates a level has to be a scene, because the levels reach `GameState`
 on ready and the autoloads only exist when a scene is run.
 
@@ -38,17 +39,29 @@ during a roll animation and must *not* consume the seeded stream — it says so.
 `tests/test_case.gd`, small enough to read in one sitting.
 
 **A run is not a level.** `RunState` is thrown away when a run ends; the dice
-collection and the checkpoint live in `GameState` and are not. That split is the
-whole of the rogue-lite, and one field in the wrong resource loses it — a test
-in `test_run_state.gd` walks `RunState`'s properties to make sure no dice ever
-end up there.
+collection lives in `GameState` and is not. That split is the whole of the
+rogue-lite, and one field in the wrong resource loses it — a test in
+`test_run_state.gd` walks `RunState`'s properties to make sure no dice ever end
+up there.
+
+**Every run starts at level 1.** There is no checkpoint and there must not be
+one: an attempt that resumes where it died risked nothing, and the game stops
+having a loop. `RunState.create()` takes no starting level on purpose, and a test
+asserts that signature — that is exactly the seam resuming crept in through the
+first time. The dice are what make attempt two shorter than attempt one.
 
 **Levels lend what the player lacks.** `Campaign.TARGETS` were measured against
 exact bags, so `DiceCollection.apply_floor()` raises whatever is equipped to the
 level's elements at level start — not just on the loadout screen, because a
-loadout is chosen at a checkpoint and carried while the references escalate
-behind it. Plain dice are never a requirement; they are the padding a reference
-bag is filled out with.
+loadout is chosen at a boss (`Campaign.offers_a_loadout()`) and carried while the
+references escalate behind it. Plain dice are never a requirement; they are the
+padding a reference bag is filled out with.
+
+**A loss must always leave a way out.** `LevelManager._on_level_lost()` builds
+and connects the loss window *before* it records anything. It was the other way
+round once, and a single bad line in the bookkeeping was enough to leave a player
+on a dead board with no window. Nothing after the window may be load-bearing for
+escaping the level, and `tools/run_probe.tscn` is what pins that.
 
 **Every UI change needs the playthrough probe.** The suite calls the engine
 directly, so it can never see a board where the rules are fine and every button
