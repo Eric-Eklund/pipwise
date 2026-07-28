@@ -1,33 +1,31 @@
 extends LevelManager
 ## The template's LevelManager, taught what a run is.
 ##
-## Two things change. The template treats every cleared level as a checkpoint,
-## which would make a lost run resume exactly where it died and mean nothing was
-## ever at stake; only the bosses count here. And the template answers a loss by
-## reloading the same level, which is the same non-event — a loss ends the run
-## and sends the player back to their last boss.
+## The template answers a loss by reloading the same level, which for a rogue-lite
+## is a non-event: if a loss resumes where it died, nothing was ever risked and
+## there is no run, only a sequence of retries. A loss ends the run here and
+## sends the player back to level 1, with the dice collection intact — that
+## collection is the only progression there is.
 ##
-## Everything else is the template's, including the win flow, which already does
-## the right thing.
+## ## The way out is built before anything else happens
+##
+## _on_level_lost() creates and connects the loss window *first*, and only then
+## records the run. It used to be the other way round, and a single bad line in
+## the bookkeeping — a Label that was really a RichTextLabel — was enough to
+## leave the player on a dead board with no window and no way forward. Nothing
+## after the window is allowed to be load-bearing for escaping the level.
 
-const CAMPAIGN_PATH := "res://resources/campaign.tres"
+## Where a lost run starts again. Level 1: the campaign is the run, and the dice
+## you keep are what makes the second attempt shorter than the first.
+const FIRST_LEVEL := "res://scenes/game_scene/levels/level_1.tscn"
 
 func set_current_level_path(value : String) -> void:
 	super.set_current_level_path(value)
 	GameState.set_current_level_path(value)
 
-## Only bosses persist as checkpoints.
-##
-## LevelManager sets this on every level won, which for a rogue-lite is the whole
-## problem: if a loss resumes from the level you just lost, nothing was ever
-## risked and there is no run, only a sequence of retries. Bosses are far enough
-## apart to be worth reaching and close enough that failing costs at most five
-## levels.
 func set_checkpoint_level_path(value : String) -> void:
 	super.set_checkpoint_level_path(value)
-	if _is_checkpoint(value):
-		GameState.set_checkpoint_level_path(value)
-		GameState.reach_checkpoint(Campaign.level_number_from_path(value))
+	GameState.set_checkpoint_level_path(value)
 
 func get_checkpoint_level_path() -> String:
 	var state_level_path := GameState.get_checkpoint_level_path()
@@ -35,51 +33,48 @@ func get_checkpoint_level_path() -> String:
 		return state_level_path
 	return super.get_checkpoint_level_path()
 
-## Ends the run and falls back to the last boss, rather than reloading the level
-## that was just lost.
+## Ends the run and sends the player back to the start of the campaign.
 ##
-## The level_lost window's "restart" is repointed at the checkpoint for exactly
-## that reason: its button says try again, and trying again has to mean the run,
-## not the level.
+## The order is the point. Window, then connections, then bookkeeping — so that
+## whatever goes wrong in the bookkeeping, the player still has a button to press.
 func _on_level_lost() -> void:
-	var finished := GameState.end_run()
 	if level_lost_scene == null:
-		_load_checkpoint_level()
+		_end_run_and_restart()
 		return
+
 	var instance = level_lost_scene.instantiate()
 	get_tree().current_scene.add_child(instance)
-	_describe_run(instance, finished)
-	_try_connecting_signal_to_node(instance, &"restart_pressed", _load_checkpoint_level)
+	_try_connecting_signal_to_node(instance, &"restart_pressed", _restart_run)
 	_try_connecting_signal_to_node(instance, &"main_menu_pressed", _load_main_menu)
 
-## Turns the loss window's "You lost..." into what the attempt was actually
-## worth, and says where the next one starts.
+	var finished := GameState.end_run()
+	_describe_run(instance, finished)
+
+## Sends the next attempt to level 1, so that Continue from the main menu starts
+## a fresh run rather than resuming one that is already over.
+func _restart_run() -> void:
+	checkpoint_level_path = FIRST_LEVEL
+	load_level(FIRST_LEVEL)
+
+func _end_run_and_restart() -> void:
+	GameState.end_run()
+	_restart_run()
+
+## Turns the window's "You lost..." into what the attempt was actually worth.
 ##
-## Written into the label rather than through the addon's own `text` property,
-## which is applied at _ready() and would need the value set before the node is
-## in the tree — a subtlety worth avoiding for one line of text.
+## The description is a RichTextLabel, not a Label. Assuming otherwise threw on
+## every single loss, and because that happened before the window was connected,
+## it stranded the player completely. Typed as Node and narrowed here so the same
+## mistake cannot be made silently again.
 func _describe_run(window : Node, finished : RunState) -> void:
-	var label : Label = window.find_child("DescriptionLabel", true, false)
-	if label == null or finished == null:
+	if finished == null:
 		return
-	var lines : Array[String] = ["Run over — %s" % finished.summary_text()]
-	var checkpoint := GameState.get_or_create_state().checkpoint_level
-	if checkpoint > 1:
-		lines.append("Your dice are yours. Next run starts at level %d." % checkpoint)
-	else:
-		lines.append("Your dice are yours. Reach a boss to move your starting point.")
-	label.text = "\n".join(lines)
-
-# --- helpers ---------------------------------------------------------------
-
-## Whether [param level_path] is a level a run may restart from. Endless is not:
-## it has no level number, and a run that fell back into endless would have
-## nowhere to fall back *to*.
-func _is_checkpoint(level_path : String) -> bool:
-	var number := Campaign.level_number_from_path(level_path)
-	if number < 1:
-		return false
-	var campaign : Campaign = load(CAMPAIGN_PATH) if ResourceLoader.exists(CAMPAIGN_PATH) else null
-	if campaign == null:
-		return false
-	return campaign.is_checkpoint(number)
+	var node := window.find_child("DescriptionLabel", true, false)
+	if node == null:
+		return
+	var text := "Run over — %s\nYour dice are yours. The next run starts at level 1." \
+		% finished.summary_text()
+	if node is RichTextLabel:
+		(node as RichTextLabel).text = text
+	elif node is Label:
+		(node as Label).text = text
