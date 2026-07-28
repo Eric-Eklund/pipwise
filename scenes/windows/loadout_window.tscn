@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/windows/game_overlay.tscn" id="1_overlay"]
+[ext_resource type="Script" path="res://scenes/windows/loadout_window.gd" id="2_loadout"]
+
+[node name="LoadoutWindow" instance=ExtResource("1_overlay")]
+script = ExtResource("2_loadout")
+title = "Your dice"
+close_text = "Start"

@@ -61,6 +61,23 @@ Ice is the one that changes the shape of the game rather than the size of the
 number. Three Ice dice make bare pairs score, which means fewer Farkles and more
 points at once — it is the difference between a cautious turn and a long one.
 
+### Your dice
+
+You own a collection. It starts as six plain dice, and clearing a level grants
+the dice that level showed you — permanently, across every future run. Before a
+run, and before each boss, you choose which six to take.
+
+A level lends you whatever you lack, so you can never equip yourself into a
+level you cannot clear. What owning dice buys you is not raw power but
+combinations: three of an element is where its trio switches on, and that is the
+number the loadout screen puts under your thumb.
+
+### Runs
+
+A run is an attempt at the campaign. Lose a level and the run is over — but the
+dice stay yours, and the next run starts from the last boss you beat. That is
+the whole loop: die, keep the dice, get further.
+
 ### Levels
 
 Ten of them, teaching one thing at a time. Levels 1 and 2 are plain dice, so you
@@ -110,7 +127,10 @@ The seams that keep it open:
   a level is many turns: `is_met()` after a bank, `is_failed()` when turns run out.
 - `LevelModifier` — a boss twist, configured into the level rather than consulted
   per roll, which is why the scorer does not know bosses exist.
-- `BagDefinition` — what dice the player owns. The seam a shop would sell into.
+- `DiceCollection` — what the player owns, and the loan that keeps a measured
+  target reachable whatever they equipped.
+- `RunState` — one attempt. Discarded on a loss; the collection is not.
+- `BagDefinition` — a set of dice. The seam a shop would sell into.
 - `Ruleset` — everything else. Dropping `resources/rulesets/level_N.tres` in
   overrides level N and needs no code.
 

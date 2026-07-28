@@ -27,11 +27,23 @@ func _ready() -> void:
 func _unhandled_input(event : InputEvent) -> void:
 	if event.is_action_pressed(&"ui_cancel"):
 		accept_event()
+		if _close_button.disabled:
+			# A window that cannot be closed from its own button must not be
+			# closable with Back either, or Android has a way out that the UI
+			# says does not exist.
+			return
 		close()
 
 func close() -> void:
 	closed.emit()
 	queue_free()
+
+## Blocks the way out until a subclass says the player is done. The loadout
+## screen needs it: leaving with four dice equipped would start a level short.
+func set_close_enabled(enabled : bool, text : String = "") -> void:
+	_close_button.disabled = not enabled
+	if not text.is_empty():
+		_close_button.text = text
 
 ## Convenience for subclasses: a row with a label on the left and a value pushed
 ## to the right.

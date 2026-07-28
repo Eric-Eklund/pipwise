@@ -57,6 +57,8 @@ func _play_scene(path : String, label : String) -> void:
 		level.rng_seed = seed_value
 		add_child(level)
 		await get_tree().process_frame
+		_dismiss_loadout(level)
+		await get_tree().process_frame
 
 		var outcome := _drive(level)
 		if outcome == "won":
@@ -67,6 +69,24 @@ func _play_scene(path : String, label : String) -> void:
 		level.queue_free()
 
 	print("  %-10s %d/%d cleared" % [label, wins, SEEDS.size()])
+
+## Presses Start on the loadout screen, which levels 1, 5 and 10 open before the
+## round begins.
+##
+## Goes through the real button rather than calling the level's handler, because
+## the thing worth catching here is a loadout screen that cannot be dismissed —
+## if the preselected dice ever failed to add up to six, Start would be disabled
+## and the player would be stuck on a screen with no way out. That is exactly the
+## kind of dead end this probe exists for, and _drive() would only report "no
+## game" without saying why.
+func _dismiss_loadout(level : FarkleLevel) -> void:
+	var window := level.find_child("LoadoutWindow", true, false)
+	if window == null:
+		return
+	var start : Button = window.find_child("CloseButton", true, false)
+	if start == null or start.disabled:
+		return
+	start.pressed.emit()
 
 ## The bot, pressing buttons instead of calling the engine. Deliberately greedy
 ## and dumb — it takes whatever is offered and banks the moment it can, which

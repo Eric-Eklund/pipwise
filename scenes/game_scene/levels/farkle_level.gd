@@ -31,6 +31,8 @@ const FARKLE_COLOR := Color(0.90, 0.44, 0.36)
 @export var tutorial_scene : PackedScene
 ## Opened by the HUD's ? button: what scores and what the elements do.
 @export var guide_scene : PackedScene
+## Shown at the start of a run and before each boss: pick the six dice.
+@export var loadout_scene : PackedScene
 
 var game : FarkleGame
 
@@ -60,8 +62,13 @@ func _ready() -> void:
 	# set aside row appears or the window changes shape.
 	_dice_tray.resized.connect(_place_banner)
 	_effects.bind_board(_board)
-	start_round(_get_ruleset())
-	_show_tutorial_once()
+	# The round waits for the loadout when there is one to choose. Rolling first
+	# and re-rolling afterwards would work, but the player would hear the dice
+	# land behind the dim and watch the board rebuild itself the moment they
+	# pressed Start.
+	if not _offer_loadout():
+		start_round(_get_ruleset())
+		_show_tutorial_once()
 
 ## Builds a fresh game and puts it on screen. Separate from _ready() because
 ## endless mode plays round after round in the same scene, so everything here
@@ -91,12 +98,47 @@ func start_round(round_ruleset : Ruleset) -> void:
 
 ## An explicit ruleset wins, then the campaign, then bare defaults — so a scene
 ## dropped in with nothing configured still runs.
+##
+## The campaign is handed the saved loadout. Null means nothing has been equipped
+## yet, and the level falls back to the bag its target was measured against,
+## which is exactly what the balance probe and the tests play.
 func _get_ruleset() -> Ruleset:
 	if ruleset != null:
 		return ruleset
 	if campaign != null:
-		return campaign.get_ruleset(level_number)
+		return campaign.get_ruleset(level_number, GameState.get_loadout_bag())
 	return Ruleset.new()
+
+# --- loadout ----------------------------------------------------------------
+
+## Opens the loadout screen where a choice is worth making, and returns whether
+## it did.
+##
+## Not before every level. Ten of these per run is friction, and on an ordinary
+## level there is nothing new to decide — the boss is where the twist forces a
+## rethink, and the start of a run is where the build gets chosen at all.
+func _offer_loadout() -> bool:
+	if loadout_scene == null or campaign == null:
+		return false
+	if not campaign.is_checkpoint(level_number):
+		return false
+
+	# The board is hidden, not merely dimmed. Its labels still carry the scene's
+	# authored placeholders until start_round runs, and a target of "1900"
+	# showing through behind the loadout is a number the player will believe.
+	_board.visible = false
+
+	var window := loadout_scene.instantiate()
+	add_child(window)
+	window.loadout_chosen.connect(_on_loadout_chosen)
+	window.show_loadout(GameState.get_dice_collection(), campaign.reference_bag_for(level_number))
+	return true
+
+func _on_loadout_chosen(elements : Array[StringName]) -> void:
+	GameState.set_loadout(elements)
+	_board.visible = true
+	start_round(_get_ruleset())
+	_show_tutorial_once()
 
 # --- input ------------------------------------------------------------------
 
@@ -286,10 +328,35 @@ func _show_tutorial_once() -> void:
 
 func _on_level_won() -> void:
 	_record_result(true)
+	_grant_dice()
+	GameState.get_run().clear_level(game.context.banked_score, game.context.farkle_count)
+	GlobalState.save()
 	win()
 
+## Clearing a level pays the dice it showed you, permanently.
+##
+## Tops up rather than adds, so replaying a level is not a dice farm — the reward
+## is reaching it the first time. Campaign.grant_for() is the same data as the
+## reference bag on purpose: the targets were measured against exactly these
+## dice, so these are the ones the player has to end up owning.
+func _grant_dice() -> void:
+	if campaign == null:
+		return
+	var granted := GameState.grant_dice(campaign.grant_for(level_number))
+	if granted.is_empty():
+		return
+	var names : Array[String] = []
+	for element in granted:
+		names.append("%d %s" % [int(granted[element]), Element.get_label(element)])
+	_set_notice("Earned %s" % " and ".join(names), HINT_COLOR)
+
+## The run's tally is updated here, but the run is *ended* by the level manager.
+## A level does not get to decide that the attempt is over — endless levels lose
+## too, and they are not part of a campaign run at all.
 func _on_level_lost() -> void:
 	_record_result(false)
+	GameState.get_run().record_loss(game.context.farkle_count)
+	GlobalState.save()
 	lose()
 
 ## Persists the run so level select and progression have something to read.

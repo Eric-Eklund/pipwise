@@ -37,6 +37,19 @@ during a roll animation and must *not* consume the seeded stream — it says so.
 **Every engine change needs a test.** `tests/suites/` and a hand-rolled harness in
 `tests/test_case.gd`, small enough to read in one sitting.
 
+**A run is not a level.** `RunState` is thrown away when a run ends; the dice
+collection and the checkpoint live in `GameState` and are not. That split is the
+whole of the rogue-lite, and one field in the wrong resource loses it — a test
+in `test_run_state.gd` walks `RunState`'s properties to make sure no dice ever
+end up there.
+
+**Levels lend what the player lacks.** `Campaign.TARGETS` were measured against
+exact bags, so `DiceCollection.apply_floor()` raises whatever is equipped to the
+level's elements at level start — not just on the loadout screen, because a
+loadout is chosen at a checkpoint and carried while the references escalate
+behind it. Plain dice are never a requirement; they are the padding a reference
+bag is filled out with.
+
 **Every UI change needs the playthrough probe.** The suite calls the engine
 directly, so it can never see a board where the rules are fine and every button
 happens to be disabled — the player stuck looking at dice they cannot act on.
@@ -76,7 +89,7 @@ the class is for and what it deliberately is not.
 | `scripts/dice/` | Die, DieType, DieFace, the pool, the elements |
 | `scripts/rules/` | Scoring, objectives, rulesets, boss modifiers |
 | `scripts/game/` | `FarkleGame` (the turn loop) and `GameContext` (the scoreboard) |
-| `scripts/campaign/` | The ten-level curve and endless mode |
+| `scripts/campaign/` | The curve, endless, the dice collection and the run |
 | `scenes/game_scene/` | The board, the dice views, the HUD |
 | `scenes/menus/`, `scenes/windows/` | Menus, options, pause, guide, tutorial |
 | `scenes/game_scene/effects/` | Shake, flash, particles and the sounds |
