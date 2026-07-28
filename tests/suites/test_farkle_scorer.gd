@@ -158,7 +158,9 @@ func test_farkle_is_possible_at_all() -> void:
 
 # --- best selection --------------------------------------------------------
 
-func test_best_selection_takes_everything_that_scores() -> void:
+## The old universal rule, now only true where no mega combo can fire — which is
+## every plain and single-element board, so still the overwhelming majority.
+func test_best_selection_takes_everything_when_no_mega_combo_can_fire() -> void:
 	var pool := dice([1, 5, 3, 4, 4, 4])
 	var best := FarkleScorer.best_selection(pool, _rules)
 	assert_eq(best.size(), 5, "the 1, the 5 and the three 4s")
@@ -166,6 +168,107 @@ func test_best_selection_takes_everything_that_scores() -> void:
 
 func test_best_selection_is_empty_on_a_farkle() -> void:
 	assert_eq(FarkleScorer.best_selection(dice([2, 3, 4, 6]), _rules).size(), 0, "nothing")
+
+## The board the whole of section 2.3 exists to create, and the first one in the
+## game where taking every scoring die is the wrong move.
+##
+## Two Crystal 1s, three Fire 6s and one Lightning 5. Taking all six is worth
+## 4500. The lone Lightning is the only die of its element, so it breaks Chaos
+## Mode — drop it and the element bonuses double, for 6500. It is a scoring die
+## worth 50 base on its own, and leaving it behind pays 2000.
+func chaos_board() -> Array[Die]:
+	return mixed([
+		[1, Element.CRYSTAL], [1, Element.CRYSTAL],
+		[6, Element.FIRE], [6, Element.FIRE], [6, Element.FIRE],
+		[5, Element.LIGHTNING],
+	])
+
+func test_best_selection_may_drop_a_scoring_die() -> void:
+	var pool := chaos_board()
+	var rules := ElementRules.new(pool)
+	var best := FarkleScorer.best_selection(pool, rules)
+	assert_eq(best.size(), 5, "five of the six")
+	assert_false(pool[5] in best, "the lone Lightning is left on the table")
+	assert_eq(FarkleScorer.score(best, rules).total(), 6500, "and it is worth more")
+
+func test_taking_everything_on_the_chaos_board_is_worth_less() -> void:
+	var pool := chaos_board()
+	var rules := ElementRules.new(pool)
+	assert_eq(FarkleScorer.score(pool, rules).total(), 4500, "all six")
+
+## The pair that justifies the split, and the shipping bug it prevents. The die
+## the best selection drops is still a legal take, so it must stay tappable — a
+## player who wants the extra 50 rather than the combo is allowed to have it.
+func test_scorable_dice_still_offers_the_die_the_best_selection_drops() -> void:
+	var pool := chaos_board()
+	var rules := ElementRules.new(pool)
+	var scorable := FarkleScorer.scorable_dice(pool, rules)
+	assert_eq(scorable.size(), 6, "every die can be taken")
+	assert_true(pool[5] in scorable, "including the one the best selection drops")
+	assert_true(FarkleScorer.is_scoring_die(pool[5], pool, rules), "and it reads as scoring")
+
+## score() must never search on the player's behalf. If it did, a selection with
+## a dead die in it would quietly report the best subset and read as valid, and
+## the player could commit dice they are not allowed to keep.
+func test_a_selection_with_a_dead_die_is_still_invalid_under_mega_combos() -> void:
+	var pool := chaos_board()
+	pool.append(die(3, Element.NATURE))
+	var result := FarkleScorer.score(pool, ElementRules.new(pool))
+	assert_eq(result.leftover_count, 1, "the lone 3 cannot be kept")
+	assert_false(result.is_valid(), "so the selection cannot be taken")
+
+## A subset can win with no mega combo involved at all, and this one has nothing
+## to do with section 2.3.
+##
+## An element bonus is a percentage of a die's share of its own *part*. An Ice
+## trio promotes a bare pair to a triple, so two Ice 5s and three 5s are both
+## worth 500 flat — but the pair splits that 500 two ways and the triple splits
+## it three. Adding a plain 5 to the pair therefore leaves the base untouched and
+## takes a third of each Ice die's bonus away with it.
+##
+## This predates the mega combos. The old best_selection() asserted it could not
+## happen and handed the player the worse take, quietly, on every Ice level.
+func test_a_plain_die_can_dilute_an_element_bonus() -> void:
+	var pool := mixed([
+		[5, Element.ICE], [5, Element.ICE], [5, Element.NONE],
+		[1, Element.ICE], [2, Element.ICE],
+	])
+	var rules := ElementRules.new(pool)
+	assert_true(rules.pairs_score(), "the Ice trio is live, so a pair scores")
+
+	var best := FarkleScorer.best_selection(pool, rules)
+	assert_false(pool[2] in best, "the plain 5 is left behind")
+	assert_true(
+		FarkleScorer.score(best, rules).total()
+			> FarkleScorer.score(FarkleScorer.scorable_dice(pool, rules), rules).total(),
+		"and dropping it is worth more than taking everything"
+	)
+
+func test_the_diluting_die_is_still_a_legal_take() -> void:
+	var pool := mixed([
+		[5, Element.ICE], [5, Element.ICE], [5, Element.NONE],
+		[1, Element.ICE], [2, Element.ICE],
+	])
+	var rules := ElementRules.new(pool)
+	assert_true(pool[2] in FarkleScorer.scorable_dice(pool, rules), "the plain 5 still scores")
+
+## Plain dice really are monotone — no percentage to dilute and no combo to
+## break — which is what lets best_of() skip the search on levels 1 and 2.
+func test_a_selection_of_plain_dice_is_never_worth_narrowing() -> void:
+	for values in [[1, 5], [1, 1, 1, 5], [5, 5, 5, 1, 1], [4, 4, 4, 1, 5]]:
+		var pool := dice(values)
+		assert_eq(
+			FarkleScorer.best_selection(pool, _rules).size(),
+			FarkleScorer.scorable_dice(pool, _rules).size(),
+			"%s takes everything" % str(values)
+		)
+
+## Ties resolve to the larger selection, so a board where a subset is merely
+## equal still takes everything.
+func test_a_subset_has_to_beat_taking_everything_outright() -> void:
+	var pool := mixed([[1, Element.FIRE], [1, Element.FIRE], [5, Element.ICE], [5, Element.ICE]])
+	var rules := ElementRules.new(pool)
+	assert_eq(FarkleScorer.best_selection(pool, rules).size(), 4, "Chaos already fires on all four")
 
 # --- elements: per-die bonuses ---------------------------------------------
 
@@ -320,6 +423,85 @@ func test_the_breakdown_reads_as_the_player_sees_it() -> void:
 	var pool := dice([6, 6, 6], Element.FIRE)
 	var result := FarkleScorer.score(pool, ElementRules.new(pool))
 	assert_eq(result.breakdown_text(), "(600 + 500) x2.5 = 2750", "the sum")
+
+# --- mega combos -----------------------------------------------------------
+
+## One die of every element: nothing repeats, so the ladder cannot leave x1 and
+## no trio fires. Master is the only thing paying this hand anything.
+func rainbow_pool(value : int) -> Array[Die]:
+	var pool : Array[Die] = []
+	for element in Element.ALL:
+		pool.append(die(value, element))
+	return pool
+
+func test_elemental_master_replaces_the_ladder_rather_than_stacking() -> void:
+	var pool := rainbow_pool(1)
+	var result := FarkleScorer.score(pool, ElementRules.new(pool))
+	assert_eq(result.mega_combo, MegaCombo.ELEMENTAL_MASTER, "one of each")
+	assert_almost_eq(result.combo_multiplier, 5.0, 0.001, "x5, not x5 times anything")
+
+## Six of one element still out-multiplies a rainbow hand. A mono bag is harder
+## to assemble and has to keep paying more, or committing to an element stops
+## being a strategy.
+func test_six_of_one_element_still_beats_six_of_six() -> void:
+	var mono := dice([1, 1, 1, 1, 1, 1], Element.FIRE)
+	var mono_result := FarkleScorer.score(mono, ElementRules.new(mono))
+	var rainbow := rainbow_pool(1)
+	var rainbow_result := FarkleScorer.score(rainbow, ElementRules.new(rainbow))
+	assert_almost_eq(mono_result.combo_multiplier, 10.0, 0.001, "the top of the ladder")
+	assert_true(mono_result.total() > rainbow_result.total(), "and it pays more")
+
+## The maxf, pinned. A mega combo must never make a selection worth less than the
+## same selection without it — the subset search has no way to decline one.
+func test_the_mega_multiplier_never_drops_below_the_ladder() -> void:
+	var pool := rainbow_pool(1)
+	pool.append(die(1, Element.FIRE))
+	var rules := ElementRules.new(pool)
+	var result := FarkleScorer.score(pool, rules)
+	assert_eq(result.mega_combo, MegaCombo.ELEMENTAL_MASTER, "still every element")
+	assert_true(result.combo_multiplier >= 5.0, "never below the floor Master sets")
+
+func test_universal_overload_pays_outside_the_multiplier() -> void:
+	var pool := rainbow_pool(6)
+	var rules := ElementRules.new(pool)
+	var result := FarkleScorer.score(pool, rules)
+	assert_eq(result.mega_combo, MegaCombo.UNIVERSAL_OVERLOAD, "six 6s, six elements")
+	assert_eq(result.mega_bonus_points, 5000, "the flat award")
+	assert_eq(
+		result.total(),
+		int(round(result.subtotal() * result.combo_multiplier)) + 5000,
+		"added after the multiplier, not inside it"
+	)
+
+func test_chaos_doubles_the_element_bonus_and_leaves_the_base_alone() -> void:
+	var pool := chaos_board()
+	pool.remove_at(5)
+	var result := FarkleScorer.score(pool, ElementRules.new(chaos_board()))
+	assert_eq(result.mega_combo, MegaCombo.CHAOS_MODE, "two Crystal, three Fire")
+	assert_almost_eq(result.element_bonus_multiplier, 2.0, 0.001, "doubled")
+	assert_eq(result.base_points, 800, "the base is untouched")
+	assert_eq(result.total(), 6500, "800 + (200 + 700) x2, all of it x2.5")
+
+## Chaos is worth nothing when the elements it spans earned no bonus, which is
+## most hands. That keeps it a rare, high-payoff read rather than a constant tax.
+func test_chaos_pays_nothing_when_there_is_no_element_bonus_to_double() -> void:
+	# Nature and Shadow never pay points, so the element bonus here is zero.
+	var pool := mixed([
+		[1, Element.NATURE], [1, Element.NATURE],
+		[5, Element.SHADOW], [5, Element.SHADOW],
+	])
+	var rules := ElementRules.new(pool)
+	var result := FarkleScorer.score(pool, rules)
+	assert_eq(result.mega_combo, MegaCombo.CHAOS_MODE, "the combo does fire")
+	assert_eq(int(round(result.element_bonus)), 0, "but there is nothing to double")
+	assert_eq(result.total(), int(round(float(result.base_points) * result.combo_multiplier)),
+		"so it pays exactly the base")
+
+func test_the_breakdown_names_the_mega_combo() -> void:
+	var pool := chaos_board()
+	pool.remove_at(5)
+	var result := FarkleScorer.score(pool, ElementRules.new(chaos_board()))
+	assert_eq(result.combo_text(), "🔮 Chaos Mode element bonuses x2", "named, not multiplied")
 
 func test_a_plain_score_shows_just_the_number() -> void:
 	assert_eq(score_of([1]).breakdown_text(), "100", "no bonus, no multiplier")

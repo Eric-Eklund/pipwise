@@ -51,14 +51,37 @@ const RULESET_DIR := "res://resources/rulesets"
 ## curve: one element, then a trio of it, then a second element, then two trios
 ## at once. Every step is measurably stronger than the one before, which is what
 ## lets the targets climb without a level ever feeling like a step backwards.
+##
+## All six elements are dealt across the ten levels, because a mega combo needs
+## elements the player owns and grants only ever top the collection up — so an
+## element no level hands out is one the loadout screen can never offer, and
+## Elemental Master would be a rule about dice that do not exist.
+##
+## Shadow and Nature are paired with the levels that give them something to do
+## rather than given levels of their own. Neither pays points — Shadow softens a
+## Farkle and Nature returns dice — so a bag built around them scores nothing and
+## would make the curve step backwards. Shadow lands on 6 because 6 is where the
+## Farkle penalty starts (see penalty_from_level), and Nature lands on 7 beside
+## Ice because both of them are about getting more takes out of a turn.
+##
+## Levels 8 and 9 are each two trios at once, which is the shape section 2.3's
+## Chaos Mode asks for: three of one element and three of another both clear its
+## "at least two of each", and one stray die of a third breaks it.
+##
+## Both keep Ice, and that is not laziness. Ice is far and away the strongest
+## element, because promoting bare pairs to triples means fewer Farkles *and*
+## more scoring dice at once — measurably worth more than any two other trios
+## together. A level 9 without it scored barely half of level 8 and made the last
+## ordinary level of the campaign a step down. Crystal rides along on 9 instead,
+## where its 1s pay quadruple and Chaos doubles that again.
 const ELEMENT_SCHEDULE : Dictionary = {
 	3: [[Element.FIRE, 2]],
 	4: [[Element.FIRE, 3]],
 	5: [[Element.FIRE, 4]],
-	6: [[Element.LIGHTNING, 3]],
-	7: [[Element.ICE, 3]],
+	6: [[Element.LIGHTNING, 3], [Element.SHADOW, 2]],
+	7: [[Element.ICE, 3], [Element.NATURE, 2]],
 	8: [[Element.ICE, 3], [Element.FIRE, 3]],
-	9: [[Element.ICE, 4]],
+	9: [[Element.ICE, 3], [Element.CRYSTAL, 3]],
 	10: [[Element.FIRE, 5]],
 }
 
@@ -71,17 +94,22 @@ const ELEMENT_SCHEDULE : Dictionary = {
 ## track — three Ice dice roughly double a turn on their own, because pairs
 ## scoring means fewer Farkles *and* more points. Targets that ignored that
 ## would make level 7 trivial and level 9 impossible.
+##
+## Levels 1 and 2 are the same ruleset with the same plain bag, so the only thing
+## that can separate them is this number. One is set a little under its measured
+## half-way mark on purpose — it is the first thing anybody plays, and losing it
+## teaches nothing that level 2 will not teach a minute later.
 const TARGETS : Dictionary = {
-	1: 1900,
-	2: 2100,
+	1: 2000,
+	2: 2150,
 	3: 2700,
 	4: 3700,
 	5: 4600,
-	6: 5000,
-	7: 10500,
-	8: 10800,
-	9: 13000,
-	10: 2600,
+	6: 5300,
+	7: 13600,
+	8: 14400,
+	9: 19000,
+	10: 2250,
 }
 
 ## The bosses, keyed by level. Kept here rather than in .tres files because a

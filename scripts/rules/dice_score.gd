@@ -24,6 +24,16 @@ var element_bonus : float = 0.0
 var combo_element : StringName = Element.NONE
 var combo_count : int = 0
 var combo_multiplier : float = 1.0
+## Section 2.3's mega combo, or MegaCombo.NONE. Kept apart from combo_element
+## because a mega is not an element — it is a shape across several of them, and
+## tinting or naming it with any one would say the wrong thing.
+var mega_combo : StringName = MegaCombo.NONE
+## Chaos Mode's multiplier on the element-bonus portion. 1.0 is "no Chaos", and
+## every field below defaults so that the sum reduces to what it was before mega
+## combos existed.
+var element_bonus_multiplier : float = 1.0
+## Universal Overload's flat award, paid outside the multiplier.
+var mega_bonus_points : int = 0
 ## Dice Nature hands back to the table after this selection is banked.
 var dice_restored : int = 0
 ## Dice in the selection that contribute nothing. Non-zero means the player has
@@ -39,14 +49,23 @@ func is_scoring() -> bool:
 	return total() > 0
 
 ## Everything before the combo multiplier.
+##
+## Chaos Mode doubles the element portion and never the base. The base is what
+## the dice are worth as dice, and no element rule has ever touched it — letting
+## a mega combo do so would make Chaos strictly dominate section 2.1's ladder
+## instead of competing with it.
 func subtotal() -> float:
-	return float(base_points + bonus_points) + element_bonus
+	return float(base_points) + (float(bonus_points) + element_bonus) * element_bonus_multiplier
 
 ## Rounded exactly once, here, so no two callers can disagree about the number.
+##
+## Universal Overload's flat award lands *outside* the multiplier. Inside it, on
+## the six 6s that are the only hand which fires it, +5000 would become +25000
+## and the number would stop meaning anything.
 func total() -> int:
 	if not is_valid():
 		return 0
-	return int(round(subtotal() * combo_multiplier))
+	return int(round(subtotal() * combo_multiplier)) + mega_bonus_points
 
 ## The multiplier as the player reads it: "x4", not "x4.0", but still "x1.5".
 func multiplier_text() -> String:
@@ -65,7 +84,14 @@ func parts_text() -> String:
 
 ## Names the combo, e.g. "🔥 Fire x4". Empty when nothing repeated enough to
 ## earn one, which is also when the multiplier is 1 and there is nothing to say.
+##
+## A mega combo outranks the element one, because the mega is the thing the
+## player did. It carries its own effect text rather than multiplier_text(): for
+## Chaos, combo_multiplier still holds the section 2.1 ladder, which has nothing
+## to do with Chaos's doubling, and printing it there would be a lie.
 func combo_text() -> String:
+	if mega_combo != MegaCombo.NONE:
+		return "%s %s" % [MegaCombo.get_label(mega_combo), MegaCombo.get_effect_text(mega_combo)]
 	if combo_count < 2 or combo_element == Element.NONE:
 		return ""
 	return "%s %s" % [Element.get_label(combo_element), multiplier_text()]
@@ -76,7 +102,14 @@ func combo_text() -> String:
 func breakdown_text() -> String:
 	if not is_valid():
 		return ""
-	var bonus := int(round(element_bonus + bonus_points))
+	# Chaos is folded into the bonus term rather than shown as its own step. The
+	# player can see the doubling in the combo line above; repeating it here would
+	# turn a sum into a derivation.
+	var bonus := int(round((element_bonus + float(bonus_points)) * element_bonus_multiplier))
+	if mega_bonus_points > 0:
+		return "(%d + %d) %s + %d = %d" % [
+			base_points, bonus, multiplier_text(), mega_bonus_points, total()
+		]
 	if bonus == 0 and is_equal_approx(combo_multiplier, 1.0):
 		return str(total())
 	if is_equal_approx(combo_multiplier, 1.0):

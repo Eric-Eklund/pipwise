@@ -29,6 +29,10 @@ const STRAIGHT_POINTS := 1500
 const THREE_PAIRS_POINTS := 1500
 ## A straight and three pairs both need the whole table.
 const WHOLE_SET_SIZE := 6
+## Above this many candidates, best_of() stops searching subsets and takes
+## everything. Ruleset.dice_count is authored, and a seven-die bag should degrade
+## to the old behaviour rather than to a hundred and twenty-seven scorings.
+const MAX_SUBSET_SEARCH := 6
 
 # --- the questions the game asks -------------------------------------------
 
@@ -48,23 +52,88 @@ static func score(dice : Array[Die], rules : ElementRules = null) -> DiceScore:
 ## the only thing standing between the player and infinite points, so this is
 ## the single most load-bearing function in the engine.
 static func has_scoring_dice(dice : Array[Die], rules : ElementRules = null) -> bool:
-	return not score(dice, rules).parts.is_empty()
+	return not scorable_dice(dice, rules).is_empty()
 
-## Every die in [param dice] that contributes to the best selection. What the
-## view highlights, and what the "take everything" button takes.
+## Every die in [param dice] that could belong to *some* valid selection. What
+## the view lets the player tap, and what a Farkle is the absence of.
 ##
-## Taking everything that scores is always at least as good as taking less: no
-## entry in the table pays less for more dice, and adding a die can only raise
-## the count of the element leading the combo. So this really is the best
-## selection and not merely a convenient one.
+## Deliberately not the same question as best_selection(). This one is about what
+## is *legal*; that one is about what is *best*, and since a subset can be worth
+## more than the whole the two answers differ. Greying a die out because it is not
+## in the best selection would take the choice away at exactly the moment the game
+## finally has one — and the best take is advice, not a rule.
+##
+## Unions across every decomposition rather than reading the winning one. A
+## straight and the greedy reading claim different dice, and a die that belongs
+## to a straight is takeable whether or not the straight happens to score higher.
+static func scorable_dice(dice : Array[Die], rules : ElementRules = null) -> Array[Die]:
+	var element_rules := rules if rules != null else ElementRules.new()
+	var contributing : Dictionary = {}
+	for candidate in _decompositions(dice, element_rules):
+		for part in candidate["parts"]:
+			for die in part.dice:
+				contributing[die] = true
+
+	# Walked in the pool's own order, so the tray never reshuffles under a thumb.
+	var result : Array[Die] = []
+	for die in dice:
+		if contributing.has(die):
+			result.append(die)
+	return result
+
+## The selection worth the most points. What the Take button reaches for when
+## the player has marked nothing.
+##
+## This used to be "everything that scores", on the argument that no entry in the
+## table pays less for more dice and adding a die can only raise the count of the
+## element leading the combo. Both halves of that are false, in two independent
+## ways:
+##
+## - Section 2.3's Chaos Mode and Universal Overload ask something of the *shape*
+##   of a selection, and both are conditions a further die can break.
+## - An element bonus is a percentage of a die's share of its own part. A part is
+##   worth the same whether it holds two dice or three once an Ice trio promotes
+##   pairs, so adding a plain 5 to a pair of Ice 5s leaves the base at 500 and
+##   halves what each Ice die's percentage is taken of.
+##
+## The second one predates the mega combos entirely and was costing the player
+## points with nothing looking for it — the old comment here asserted it could
+## not happen. It is why this searches rather than trusting the greedy reading.
 static func best_selection(dice : Array[Die], rules : ElementRules = null) -> Array[Die]:
-	return score(dice, rules).get_dice()
+	var element_rules := rules if rules != null else ElementRules.new()
+	return best_of(scorable_dice(dice, element_rules), element_rules)
+
+## The best selection out of a candidate set that is already known to be legal.
+## Split out because FarkleGame needs the scorable set anyway and should not pay
+## to compute it twice.
+static func best_of(candidates : Array[Die], rules : ElementRules) -> Array[Die]:
+	if candidates.size() < 2 or candidates.size() > MAX_SUBSET_SEARCH:
+		return candidates.duplicate()
+	# Plain dice are genuinely monotone, and levels 1 and 2 are nothing else.
+	if not rules.subset_could_win(candidates):
+		return candidates.duplicate()
+
+	# Taking everything is the incumbent and a subset has to beat it outright, so
+	# a tie always resolves to the larger selection — which keeps the player's
+	# dice on the table rather than spending them for nothing.
+	var best := candidates.duplicate()
+	var best_score := score(best, rules)
+	for mask in range(1, 1 << candidates.size()):
+		var subset : Array[Die] = []
+		for index in candidates.size():
+			if mask & (1 << index) != 0:
+				subset.append(candidates[index])
+		var scored := score(subset, rules)
+		if _is_better(scored, best_score):
+			best = subset
+			best_score = scored
+	return best
 
 ## Whether one die could belong to a scoring selection at all. Used to grey out
 ## the dice the player cannot pick, so that an illegal selection is unreachable
 ## rather than merely rejected.
 static func is_scoring_die(die : Die, dice : Array[Die], rules : ElementRules = null) -> bool:
-	return die in best_selection(dice, rules)
+	return die in scorable_dice(dice, rules)
 
 # --- decomposition ---------------------------------------------------------
 
@@ -190,6 +259,12 @@ static func _apply_elements(candidate : Dictionary, rules : ElementRules) -> Dic
 	var lead := rules.leading_element(scored)
 	result.combo_element = lead[0]
 	result.combo_count = int(lead[1])
+	# Detected once and read three ways. What the combos are worth is MegaCombo's
+	# own table, the same way an element's numbers are ElementRules' — the scorer
+	# looks the payout up and never decides it.
+	result.mega_combo = rules.mega_combo_for(scored)
+	result.element_bonus_multiplier = MegaCombo.element_bonus_multiplier_for(result.mega_combo)
+	result.mega_bonus_points = MegaCombo.flat_bonus_for(result.mega_combo)
 	result.combo_multiplier = rules.combo_multiplier_for(scored)
 	result.dice_restored = rules.dice_restored(scored)
 	return result

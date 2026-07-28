@@ -450,17 +450,23 @@ The build reads the **pips on the scored dice**. That is a real coin flip, it is
 the number the player is looking at, and it matches the word *sum* better than a
 multiplied, bonused, rounded score does.
 
-### 5. The rainbow bag is the weakest in the game
+### 5. The rainbow bag is feast-or-famine, not strong — **resolved**
 
-Not a deviation so much as a consequence worth writing down, because it is the
-opposite of what the document implies. §7's "Elemental Balanced" build — one die
-of each element — reaches no trio and repeats no element, so **no** trio rule
-fires and §2.1's combo ladder never leaves ×1. It is strictly worse than six plain
-dice plus any three matching ones.
+This entry used to read "the rainbow bag is the weakest in the game", and it was
+true: §7's "Elemental Balanced" build — one die of each element — reaches no trio
+and repeats no element, so **no** trio rule fired and §2.1's combo ladder never
+left ×1. It was strictly worse than six plain dice plus any three matching ones.
 
-The build only becomes what §7 describes once §2.3's mega combos exist, and
-Elemental Master is precisely the rule that fixes it. Until then the campaign does
-not hand the rainbow bag out, and a test pins that it does not.
+§2.3's Elemental Master now exists and pays it ×5. But that combo needs all six
+dice to score in one selection, which means a straight, three pairs or a
+six-of-a-kind — roughly **one fresh six-die roll in twenty**. So the bag is not
+strong in the way §7 imagines; it is high-variance, worth a great deal on the
+rolls that land and nothing at all on the rest.
+
+The campaign still does not deal it, and the test still pins that — but for a
+new reason. A level's target is measured against its bag, and a bag that pays
+nothing four turns in five is not something a measured target can sit on top of.
+It is a build the player may *choose* at a boss, having seen what it does.
 
 ### 6. MVP scope
 
@@ -469,8 +475,8 @@ combo ladder and the §2.2 trios at their level-1 tier, roughly ten levels and
 endless mode.
 
 Not built yet, in rough priority order: cards (§3), the shop and currencies
-(§6), per-die levelling (§1.4), dice evolution and D8+ (§1.2), mega combos
-(§2.3), and the drop tables (§5.3). The engine seams they will attach to exist —
+(§6), per-die levelling (§1.4), dice evolution and D8+ (§1.2), and the drop
+tables (§5.3). The engine seams they will attach to exist —
 see `CLAUDE.md` — but none of it is balanced or worth balancing until the core
 loop is known to be fun.
 
@@ -478,7 +484,53 @@ The campaign is ten levels rather than a hundred, so the bosses are compressed:
 the Ember Warden on 5 and the Fire Lord on 10, rather than the Fire Lord on 25.
 The other three bosses in §5.2 are unbuilt.
 
-### 7. Die levels are fixed at 1
+### 7. The mega combos are reinterpreted, and one of them is why
+
+§2.3 is built, and it is the first thing in the game that makes taking *fewer*
+dice correct. That was the point of building it.
+
+Before it, `FarkleScorer` carried a comment claiming that taking every scoring
+die was always at least as good as taking less — no entry in the scoring table
+pays less for more dice, and §2.1's ladder counts the leading element, which
+another die can only raise. So the first decision of a Farkle turn had one right
+answer and the turn collapsed to "take all, then push or bank".
+
+Two of the three mega combos are conditions a *further* die can break, which is
+what reopens it. Building them also turned up that the comment was **already
+false**: an element bonus is a percentage of a die's share of its own scoring
+part, and an Ice trio makes a bare pair pay the same flat 500 as a triple — so
+adding a plain 5 to two Ice 5s leaves the base alone and dilutes each Ice die's
+share of it by a third. The scorer had been handing out the worse take on every
+Ice level, with nothing looking for it. `best_selection()` now searches subsets
+and both cases are pinned.
+
+Four departures from the text:
+
+| §2.3 says | Built as | Why |
+| --- | --- | --- |
+| Master makes every die *wild*, able to act as any element | Master is the ×5 and nothing else | There is no wild mechanic in the engine, and adding one would reach into `Die`, `ElementRules` and the scorer at once |
+| Chaos needs **3+** distinct elements, 2 of each | **2+** distinct elements, 2 of each | See below |
+| Chaos: "all element combos fire at once, ×2 on element bonuses" | ×2 on the element-bonus portion only | "All combos fire at once" has no referent in a build where element effects are per-die percentages rather than togglable combos. Multiplying the base as well would make Chaos strictly dominate §2.1's ladder instead of competing with it |
+| Overload grants an automatic straight bonus | Dropped | The six 6s that fire it are already a six-of-a-kind worth 4800; a 1500 straight bonus is unreachable underneath that |
+
+**Chaos at two elements rather than three** is the load-bearing one. With a
+six-die pool, "3+ distinct elements with at least 2 of each" can only ever be
+satisfied by exactly 2+2+2 — which uses the whole table, so no larger selection
+can break it, so it would create no decision at all. It would also fire on no bag
+the campaign ships. At two it fires on levels 8 and 9, and one stray die of a
+third element is enough to break it. That difference is the whole feature.
+
+**Master replaces §2.1's ladder rather than stacking on it**, as a floor under
+the multiplier rather than an override. Six dice of one element already pay ×10
+and a rainbow hand should sit below that — a mono bag is harder to assemble. The
+floor form also guarantees a mega combo can never make a selection worth *less*
+than the same selection without it, which matters because the best-selection
+search has no way to decline one.
+
+**Overload's +5000 is paid outside the multiplier.** Inside it, on the only hand
+that can fire it, it would be +25000 and the number would stop meaning anything.
+
+### 8. Die levels are fixed at 1
 
 §1.3's per-level element scaling and §1.4's per-die upgrades are not in the MVP,
 so every element effect fires at its level-1 tier. `Die.level` exists and is

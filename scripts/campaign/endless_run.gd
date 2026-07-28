@@ -11,13 +11,21 @@ extends Resource
 ## between chasing pairs and chasing sixes.
 ##
 ## Not the rainbow bag, despite it being the obvious "endless" answer. One die
-## per element reaches no trio and repeats nothing, so the combo ladder never
-## leaves x1 — it is the weakest bag in the game until the mega combos exist.
+## per element reaches no trio and repeats nothing, so the only thing paying it
+## at all is Elemental Master — and that needs all six dice to score at once,
+## which is a straight or three pairs and no more than one roll in twenty. Three
+## and three pays every turn instead.
+##
+## The target curve was re-measured once section 2.3 arrived. Three Ice and three
+## Fire is exactly the shape Chaos Mode asks for, and the combo added enough that
+## a run stretched from about seven rounds to twelve before it was steepened back.
+## Endless is scored on how far you get, so the mega combos belong in the score
+## rather than in the length.
 
 @export_group("Score target")
-@export var base_target : int = 10000
+@export var base_target : int = 11500
 ## Added per round. Steep enough that a run ends in minutes, not hours.
-@export var target_step : float = 500.0
+@export var target_step : float = 700.0
 
 @export_group("Turns")
 @export_range(1, 30) var base_turns : int = 5

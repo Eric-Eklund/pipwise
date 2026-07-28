@@ -17,6 +17,9 @@ extends Level
 ## Muted grey for the always-on hint line.
 const HINT_COLOR := Color(0.55, 0.58, 0.64)
 const FARKLE_COLOR := Color(0.90, 0.44, 0.36)
+## Brighter than the standing hint, because the line it carries is the one thing
+## on screen the player cannot work out by looking at the dice.
+const COMBO_HINT_COLOR := Color(0.70, 0.53, 1.0)
 
 ## Which level of the campaign this is. Every level scene sets only this; the
 ## Campaign works out the rest.
@@ -276,11 +279,24 @@ func _can_take() -> bool:
 		return true
 	return game.get_selection().is_empty() and not game.get_scorable_dice().is_empty()
 
+## "Take all" is a promise the button cannot always keep. Once a mega combo can
+## make five dice worth more than six, pressing it takes the *best* selection,
+## which is sometimes fewer — and a button that says "all" and then leaves a
+## scoring die behind reads as a bug rather than as advice.
 func _take_text() -> String:
 	var score := game.selection_score
 	if score != null and score.is_valid():
 		return "Take  +%d" % score.total()
+	if _best_is_a_subset():
+		return "Take best"
 	return "Take all"
+
+## Whether the highest-scoring take leaves a scoring die on the table. The one
+## situation in the game where taking less is right, so it is worth saying twice
+## — on the button, and in the hint line under the dice.
+func _best_is_a_subset() -> bool:
+	var best := game.get_best_selection().size()
+	return best > 0 and best < game.get_scorable_dice().size()
 
 func _bank_text() -> String:
 	var requirement := game.get_bank_requirement_text()
@@ -303,7 +319,12 @@ func _refresh_hint() -> void:
 	# create is the only one that matters. "Nothing scores" is true of the dice
 	# left over after a take, and saying it there would read as a dead end when
 	# the player is one tap from banking.
-	if game.context.turn_score > 0:
+	# A take worth more than the whole roll outranks even points on the table. It
+	# is the only moment the game asks the player to leave a scoring die behind,
+	# and nothing else on screen would ever tell them so.
+	if _best_is_a_subset():
+		_show_hint("Fewer dice score more here — see what Take offers", COMBO_HINT_COLOR)
+	elif game.context.turn_score > 0:
 		_show_hint(
 			"Roll again to grow the turn, or bank before a Farkle takes it", HINT_COLOR
 		)

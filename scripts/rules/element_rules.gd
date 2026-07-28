@@ -62,6 +62,28 @@ func _init(dice_in_play : Array[Die] = []) -> void:
 			continue
 		counts[die.element] = int(counts.get(die.element, 0)) + 1
 
+## Whether taking fewer dice could ever be worth more than taking all of them,
+## which is what tells FarkleScorer.best_of() whether it has to search at all.
+##
+## One real element is the floor, and the reason is two separate mechanisms:
+##
+## - A mega combo asks something of the *shape* of a selection, and Chaos Mode
+##   and Universal Overload are both conditions a further die can break.
+## - Element bonuses are a percentage of a die's share of its *part*, and a part
+##   is worth the same whether it holds two dice or three once an Ice trio
+##   promotes pairs. So adding a plain die to a set of Ice dice leaves the base
+##   alone and dilutes every Ice die's share of it. That one predates the mega
+##   combos and was quietly costing points before anything searched for it.
+##
+## With no element anywhere, neither applies: nothing pays a percentage, no combo
+## can fire, and every entry in the scoring table pays at least as much for more
+## dice. Taking everything is then provably right and the search is skipped.
+func subset_could_win(dice : Array[Die]) -> bool:
+	for die in dice:
+		if die != null and die.element != Element.NONE:
+			return true
+	return false
+
 func count_of(element : StringName) -> int:
 	return int(counts.get(element, 0))
 
@@ -112,12 +134,29 @@ func part_bonus_points(part : ScorePart) -> int:
 		bonus += CRYSTAL_TRIO_STRAIGHT_BONUS
 	return bonus
 
+## Section 2.3's mega combo among the dice that scored, or MegaCombo.NONE.
+## Counted on what scored rather than what is in play, for the same reason the
+## combo ladder is — see the class comment above.
+func mega_combo_for(scored_dice : Array[Die]) -> StringName:
+	return MegaCombo.detect(scored_dice)
+
 ## Section 2.1's multiplier, from the most numerous element among the dice that
 ## scored. The leading element takes the whole selection with it rather than
 ## only its own share, which is what makes committing to one element a strategy
 ## instead of an accounting detail.
+##
+## Elemental Master raises the floor rather than stacking on top. Six dice of one
+## element already pay x10, and a rainbow hand should sit below that — a mono bag
+## is harder to assemble and ought to pay more. Its value is that it fires at
+## all, where the ladder leaves it at x1.
+##
+## maxf rather than an override, so a mega combo can never make a selection worth
+## *less* than the same selection without it. If it could, the best-selection
+## search would need a way to say "pretend this did not fire", which score()
+## cannot express.
 func combo_multiplier_for(scored_dice : Array[Die]) -> float:
-	return float(COMBO_MULTIPLIERS.get(leading_element_count(scored_dice), 1.0))
+	var ladder := float(COMBO_MULTIPLIERS.get(leading_element_count(scored_dice), 1.0))
+	return maxf(ladder, MegaCombo.multiplier_floor_for(mega_combo_for(scored_dice)))
 
 ## The element carrying the combo, and how many of it scored. Returns
 ## [Element.NONE, 0] when nothing scored or nothing repeats.

@@ -68,6 +68,20 @@ var _objective : Objective
 ## committing is not, which is why the two are separate.
 var _selection : Array[Die] = []
 
+## What is takeable and what is best, worked out once per board.
+##
+## Both are asked for far more often than they change: the tray asks can_select()
+## once per die on every redraw, so a single tap costs a dozen of these, and
+## searching for the best selection walks every subset of the table.
+var _scorable_cache : Array[Die] = []
+var _best_cache : Array[Die] = []
+## The board the two caches were computed for. Compared by value rather than
+## trusted, because a dirty flag cannot see every way the dice change: the tests
+## write faces straight onto the dice and reassign `rules`, touching no method
+## and emitting no signal. A flag was tried first and went stale in nineteen
+## tests at once.
+var _cached_board : Array = []
+
 func _init(game_ruleset : Ruleset, rng : RngService) -> void:
 	ruleset = game_ruleset
 	_rng = rng
@@ -142,7 +156,30 @@ func push() -> bool:
 
 # --- choosing --------------------------------------------------------------
 
-## The dice the player is allowed to set aside.
+## The dice the player is allowed to set aside. Legality, not advice — every die
+## in here stays tappable even when get_best_selection() leaves it behind.
+##
+## Copied on the way out. The caller owns what it gets: select_all_scoring()
+## hands its result straight to _selection, and toggle_selection() erases from
+## that, which would eat the cache from under the tray.
+func get_scorable_dice() -> Array[Die]:
+	_rebuild_scoring_cache()
+	return _scorable_cache.duplicate()
+
+## The takeable selection worth the most, which is what the Take button reaches
+## for when the player has marked nothing.
+##
+## Not always everything that scores. A mega combo asks something of the *shape*
+## of a selection, and an element bonus is a share of its own part that another
+## die dilutes — so one wrong die can cost more than it brings, and the
+## highest-scoring take is then a subset of the legal one. That gap is the whole
+## of the choice the player now has, and get_scorable_dice() is what keeps it a
+## choice rather than an instruction.
+func get_best_selection() -> Array[Die]:
+	_rebuild_scoring_cache()
+	return _best_cache.duplicate()
+
+## The dice the boss is willing to let score.
 ##
 ## The boss narrows the field *before* the scorer sees it, not after. Filtering
 ## afterwards looks equivalent and is not: a straight makes all six dice score,
@@ -150,11 +187,33 @@ func push() -> bool:
 ## takeable but form nothing, so the player can select them and then find the
 ## commit button dead. Removing them up front means the scorer never offers a
 ## shape the boss would break.
-func get_scorable_dice() -> Array[Die]:
+func _takeable_candidates() -> Array[Die]:
 	var candidates := get_dice_in_play()
 	for modifier in ruleset.modifiers:
 		candidates = modifier.filter_scorable(context, candidates)
-	return FarkleScorer.best_selection(candidates, rules)
+	return candidates
+
+func _rebuild_scoring_cache() -> void:
+	var board := _board_fingerprint()
+	if board == _cached_board:
+		return
+	var candidates := _takeable_candidates()
+	_scorable_cache = FarkleScorer.scorable_dice(candidates, rules)
+	_best_cache = FarkleScorer.best_of(_scorable_cache, rules)
+	_cached_board = board
+
+## Everything the two answers depend on, as a handful of integers.
+##
+## The turn and the roll count are in here even though no shipped modifier reads
+## them: filter_scorable() is handed the whole context, so a future modifier that
+## narrows the field as the turn wears on would otherwise be cached over.
+func _board_fingerprint() -> Array:
+	var board : Array = [
+		rules.get_instance_id(), context.turn, context.turn_score, context.pool.roll_count
+	]
+	for die in context.pool.dice:
+		board.append(die.get_value() * 2 + (1 if die.is_set_aside else 0))
+	return board
 
 func is_selected(die : Die) -> bool:
 	return die in _selection
@@ -181,10 +240,11 @@ func toggle_selection(die : Die) -> bool:
 	selection_changed.emit()
 	return true
 
-## Marks everything that scores. The button most players will use most of the
-## time, and never a worse choice than a subset — see FarkleScorer.best_selection.
+## Marks the selection worth the most. The button most players will use most of
+## the time, and no longer the same thing as marking everything that scores —
+## see get_best_selection().
 func select_all_scoring() -> void:
-	_selection = get_scorable_dice()
+	_selection = get_best_selection()
 	_refresh_selection_score()
 	selection_changed.emit()
 
