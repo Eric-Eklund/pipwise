@@ -74,9 +74,15 @@ number the loadout screen puts under your thumb.
 
 ### Runs
 
-A run is an attempt at the campaign. Lose a level and the run is over — but the
-dice stay yours, and the next run starts from the last boss you beat. That is
-the whole loop: die, keep the dice, get further.
+A run is an attempt at the campaign, and it always starts at level 1. Lose a
+level and the run is over — but the dice stay yours. That is the whole loop: die,
+keep the dice, get further.
+
+Starting over is not the punishment it sounds like, because you do not start over
+*equal*. The levels you cleared last time paid you their dice, and the early
+campaign goes fast when you can walk into level 4 with three Ice. Resuming from
+the last boss was tried first and made a loss a non-event — if the attempt picks
+up where it died, nothing was ever risked.
 
 ### Levels
 
@@ -159,8 +165,19 @@ godot --headless res://tools/playthrough_probe.tscn
 Plays every level scene through its own Take, Roll and Bank buttons and fails if
 any run deadlocks or never reaches a verdict. The suite above never draws a
 frame, so it cannot see a board where the rules are fine and every button happens
-to be disabled; this can. Both run on every push via
-`.github/workflows/tests.yml`.
+to be disabled; this can.
+
+```
+godot --headless res://tools/run_probe.tscn
+```
+
+Loses every level on purpose — both by running out of turns and by pressing on
+through a Farkle — and fails unless the player is left a window, a working button
+and their dice. It drives the real `LevelManager`, which the probe above never
+reaches, and that gap is how a crash in the loss handler once shipped and left
+the board frozen with nothing to press.
+
+All three run on every push via `.github/workflows/tests.yml`.
 
 ### Balance
 

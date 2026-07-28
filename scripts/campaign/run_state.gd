@@ -3,14 +3,15 @@ extends Resource
 ## One attempt at the campaign: where you are in it and what it has been worth.
 ##
 ## Everything here is thrown away when a run ends. What survives is in
-## `GameState` — the dice collection and the checkpoint. That split is the whole
+## `GameState` — the dice collection, and nothing else. That split is the whole
 ## of the rogue-lite, and putting both in one resource would be the easiest
 ## possible way to lose it.
 ##
-## Note what is *not* here: the checkpoint. Where a lost run starts again is
-## permanent progress, not run progress — reaching the Ember Warden means every
-## future run begins there, which is the thing that keeps a ten-level run from
-## costing half an hour to fail.
+## Note what is *not* here, and is not anywhere: a checkpoint. Every run starts
+## at level 1. Resuming at the last boss reached was tried first and made a loss
+## a non-event — if the attempt restarts where it died, nothing was risked and
+## there is no run, only retries. The dice are what make attempt two shorter than
+## attempt one.
 ##
 ## A `Resource` rather than a `RefCounted` because a run outlives the level scene
 ## it is played in: the player can quit between levels and come back to the same
@@ -26,12 +27,11 @@ extends Resource
 ## whether the player is pushing too hard.
 @export var farkles : int = 0
 
-## A fresh run beginning at [param from_level], which is the player's checkpoint
-## rather than always level 1.
-static func create(from_level : int = 1) -> RunState:
-	var run := RunState.new()
-	run.level = maxi(1, from_level)
-	return run
+## A fresh run, always at level 1. Takes no starting level on purpose: a run that
+## could begin anywhere is a run that can be resumed, and resuming is what this
+## design gave up.
+static func create() -> RunState:
+	return RunState.new()
 
 func clear_level(banked : int, farkle_count : int) -> void:
 	score += banked

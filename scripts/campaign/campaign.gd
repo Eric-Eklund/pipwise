@@ -146,17 +146,23 @@ func reference_bag_for(level : int) -> BagDefinition:
 func grant_for(level : int) -> BagDefinition:
 	return reference_bag_for(level)
 
-## Whether a lost run restarts from [param level]. The bosses, because a run is
-## ten levels and losing the ninth should not cost all nine.
-func is_checkpoint(level : int) -> bool:
+## Whether [param level] is where the player gets to choose a build. The start of
+## a run, because that is where a build is chosen at all, and the bosses, because
+## a twist is the only thing that forces a rethink. Not every level: ten loadout
+## screens per run is friction, and nine of them would have nothing new to decide.
+##
+## Note what this deliberately no longer means. It used to also mark where a lost
+## run resumed, and that made a loss a non-event — the attempt restarted where it
+## died, so nothing was ever risked. Every run starts at level 1 now.
+func offers_a_loadout(level : int) -> bool:
 	return level == 1 or BOSSES.has(level)
 
 ## The number in a path like "res://…/level_7.tscn", or -1 for anything without
-## one — which is what endless is, and why it can never be a checkpoint.
+## one — which is what endless is.
 ##
 ## Static and here rather than in the two places that used to parse it for
-## themselves: the level select menu sorts by it and the level manager decides
-## checkpoints by it, and two copies of the same parser is one copy too many.
+## themselves: the level select menu sorts by it and the level manager reads it
+## off the current scene, and two copies of the same parser is one copy too many.
 static func level_number_from_path(level_path : String) -> int:
 	var name := level_path.get_file().trim_suffix(".tscn")
 	var digits := ""
