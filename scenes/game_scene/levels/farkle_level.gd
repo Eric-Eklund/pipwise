@@ -112,15 +112,12 @@ func _get_ruleset() -> Ruleset:
 # --- loadout ----------------------------------------------------------------
 
 ## Opens the loadout screen where a choice is worth making, and returns whether
-## it did.
-##
-## Not before every level. Ten of these per run is friction, and on an ordinary
-## level there is nothing new to decide — the boss is where the twist forces a
-## rethink, and the start of a run is where the build gets chosen at all.
+## it did. Which levels those are is the campaign's call — see
+## Campaign.offers_a_loadout().
 func _offer_loadout() -> bool:
 	if loadout_scene == null or campaign == null:
 		return false
-	if not campaign.is_checkpoint(level_number):
+	if not campaign.offers_a_loadout(level_number):
 		return false
 
 	# The board is hidden, not merely dimmed. Its labels still carry the scene's

@@ -1,10 +1,9 @@
 extends TestCase
 ## What a run carries, and what a loss costs.
 ##
-## The split these tests exist to protect: the run is thrown away, the
-## collection and the checkpoint are not. Getting that backwards would either
-## make death meaningless or make it unbearable, and both are one field in the
-## wrong resource away.
+## The split these tests exist to protect: the run is thrown away, the dice
+## collection is not. Getting that backwards would either make death meaningless
+## or make it unbearable, and both are one field in the wrong resource away.
 
 var _campaign : Campaign
 
@@ -19,10 +18,16 @@ func test_a_new_run_starts_at_level_one() -> void:
 	assert_eq(run.score, 0)
 	assert_eq(run.levels_cleared, 0)
 
-## The whole point of a checkpoint: a later run does not replay what it has
-## already beaten.
-func test_a_run_can_start_at_a_checkpoint() -> void:
-	assert_eq(RunState.create(6).level, 6, "straight to the second half")
+## The rule that makes a run losable, pinned at the seam it would be broken at.
+## create() taking a starting level is exactly how resuming crept in the first
+## time, so the test is on the signature and not only on the value.
+func test_a_run_cannot_be_started_anywhere_but_the_beginning() -> void:
+	var arguments : Array = []
+	for method in RunState.new().get_method_list():
+		if method.get("name", "") == "create":
+			arguments = method.get("args", [])
+	assert_true(arguments.is_empty(), "create() must not take a starting level")
+	assert_eq(RunState.create().level, 1, "and every run begins at the beginning")
 
 func test_clearing_a_level_advances_and_banks() -> void:
 	var run := RunState.create()
@@ -67,44 +72,43 @@ func test_the_summary_pluralises() -> void:
 	assert_true(run.summary_text().contains("2 levels cleared"), "plural")
 	assert_true(run.summary_text().contains("2 Farkles"), "plural again")
 
-# --- checkpoints -----------------------------------------------------------
+# --- where a build gets chosen ----------------------------------------------
 
-## Where a lost run resumes. Level 1 always, then the bosses — close enough
-## together that failing costs at most five levels, far enough apart to be worth
-## reaching.
-func test_the_checkpoints_are_level_one_and_the_bosses() -> void:
-	assert_true(_campaign.is_checkpoint(1), "the start")
+## The start of a run and the bosses. Everywhere else there is nothing new to
+## decide, and a loadout screen with nothing to decide is a tap for its own sake.
+func test_a_loadout_is_offered_at_the_start_and_at_the_bosses() -> void:
+	assert_true(_campaign.offers_a_loadout(1), "the start")
 	for level in range(2, _campaign.level_count + 1):
 		assert_eq(
-			_campaign.is_checkpoint(level),
+			_campaign.offers_a_loadout(level),
 			Campaign.BOSSES.has(level),
 			"level %d" % level
 		)
 
-## A ten-level run at two or three minutes a level is half an hour. If the gap
-## between checkpoints ever grew past five, losing would cost more than anyone
-## will sit through twice.
-func test_no_checkpoint_is_more_than_five_levels_from_the_last() -> void:
+## A build is carried while the reference bags escalate behind it, so the gap
+## between two loadout screens is how long the player is stuck with a choice.
+## Five levels is already the outside of that.
+func test_no_loadout_is_more_than_five_levels_from_the_last() -> void:
 	var previous := 1
 	for level in range(2, _campaign.level_count + 1):
-		if not _campaign.is_checkpoint(level):
+		if not _campaign.offers_a_loadout(level):
 			continue
 		assert_true(level - previous <= 5, "level %d is reachable from %d" % [level, previous])
 		previous = level
 	assert_true(
 		_campaign.level_count - previous <= 5,
-		"and the run ends within five of the last checkpoint"
+		"and the run ends within five of the last one"
 	)
 
-## The level manager decides checkpoints from a scene path, so the parser it
+## The level manager reads the current level off a scene path, so the parser it
 ## uses is part of the rule and worth pinning — the level select menu sorts by
 ## the same function.
 func test_a_level_number_is_read_off_its_path() -> void:
 	assert_eq(Campaign.level_number_from_path("res://a/level_7.tscn"), 7)
 	assert_eq(Campaign.level_number_from_path("res://a/level_10.tscn"), 10, "not 1")
 
-## Endless has no number, so it can never be a checkpoint — a run that fell back
-## into endless would have nowhere to fall back to.
+## Endless has no number, which is what keeps it out of anything that indexes by
+## one — the targets table and the loadout schedule both.
 func test_a_path_without_a_number_is_not_a_level() -> void:
 	assert_eq(Campaign.level_number_from_path("res://a/endless_level.tscn"), -1)
 

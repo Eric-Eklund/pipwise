@@ -21,15 +21,14 @@ const FILE_PATH = "res://scripts/game_state.gd"
 @export var runs_played : int = 0
 ## The attempt in progress. Null between runs.
 @export var run : RunState
-## The level a lost run starts again from. Permanent progress rather than run
-## progress: reaching a boss means every future run begins there.
-@export var checkpoint_level : int = 1
 
-## The run in progress, starting a new one from the checkpoint if there is none.
+## The run in progress, starting a fresh one at level 1 if there is none.
 static func get_run() -> RunState:
 	var game_state := get_or_create_state()
+	if game_state == null:
+		return RunState.create()
 	if game_state.run == null:
-		game_state.run = RunState.create(game_state.checkpoint_level)
+		game_state.run = RunState.create()
 		GlobalState.save()
 	return game_state.run
 
@@ -37,6 +36,8 @@ static func get_run() -> RunState:
 ## show before it is thrown away.
 static func end_run() -> RunState:
 	var game_state := get_or_create_state()
+	if game_state == null:
+		return null
 	var finished := game_state.run
 	game_state.run = null
 	game_state.runs_played += 1
@@ -45,21 +46,14 @@ static func end_run() -> RunState:
 	# choosing a build.
 	game_state.loadout = []
 	GlobalState.save()
-	return finished if finished != null else RunState.create(game_state.checkpoint_level)
-
-## Raises the checkpoint. Only ever moves forward — a run that falls back and
-## re-clears a boss must not be able to lower it.
-static func reach_checkpoint(level : int) -> void:
-	var game_state := get_or_create_state()
-	if level <= game_state.checkpoint_level:
-		return
-	game_state.checkpoint_level = level
-	GlobalState.save()
+	return finished
 
 ## Never returns null: a save from before the collection existed, or a brand new
 ## one, gets the starting six.
 static func get_dice_collection() -> DiceCollection:
 	var game_state := get_or_create_state()
+	if game_state == null:
+		return DiceCollection.create_starting()
 	if game_state.dice_collection == null:
 		game_state.dice_collection = DiceCollection.create_starting()
 		GlobalState.save()
@@ -75,6 +69,8 @@ static func grant_dice(bag : BagDefinition) -> Dictionary:
 
 static func set_loadout(elements : Array[StringName]) -> void:
 	var game_state := get_or_create_state()
+	if game_state == null:
+		return
 	game_state.loadout = elements
 	GlobalState.save()
 
@@ -82,7 +78,7 @@ static func set_loadout(elements : Array[StringName]) -> void:
 ## which case the level falls back to its reference bag and is still playable.
 static func get_loadout_bag() -> BagDefinition:
 	var game_state := get_or_create_state()
-	if game_state.loadout.is_empty():
+	if game_state == null or game_state.loadout.is_empty():
 		return null
 	return DiceCollection.build_bag(game_state.loadout)
 
@@ -158,5 +154,4 @@ static func reset() -> void:
 	game_state.loadout = []
 	game_state.runs_played = 0
 	game_state.run = null
-	game_state.checkpoint_level = 1
 	GlobalState.save()
