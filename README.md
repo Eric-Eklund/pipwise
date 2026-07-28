@@ -61,6 +61,32 @@ Ice is the one that changes the shape of the game rather than the size of the
 number. Three Ice dice make bare pairs score, which means fewer Farkles and more
 points at once — it is the difference between a cautious turn and a long one.
 
+### Mega combos
+
+Three combos read the *shape* of what you take rather than how much of it.
+
+| | | |
+| --- | --- | --- |
+| 🌟 Elemental Master | All six elements, scored together | ×5, replacing the ladder |
+| ☄️ Universal Overload | All six, and every one of them a 6 | ×5 and a flat +5000 |
+| 🔮 Chaos Mode | Every element you take, taken at least twice | Element bonuses double |
+
+The last one is why the turn has a decision in it. "Take everything that scores"
+used to be correct almost always, so the choice was never really a choice. Chaos
+breaks on a single stray die: take two Crystal, three Fire and one lone Lightning
+and it is worth 4500 — leave the Lightning on the table and the same roll pays
+6500. And the die you *don't* take is one more die to roll with next.
+
+There is a quieter version of the same trap without any combo at all. An element
+bonus is a percentage of what its die contributes to the set it is in, and three
+Ice dice make a bare pair pay the same 500 as a triple — so throwing a plain 5 in
+with two Ice 5s adds nothing to the total and takes a third of each Ice die's
+bonus away with it.
+
+So the Take button offers the best selection rather than every scoring die, and
+says **Take best** when those differ. You can still take everything. It is just
+no longer free.
+
 ### Your dice
 
 You own a collection. It starts as six plain dice, and clearing a level grants
@@ -88,8 +114,16 @@ up where it died, nothing was ever risked.
 
 Ten of them, teaching one thing at a time. Levels 1 and 2 are plain dice, so you
 learn what a Farkle costs before an element ever softens one. Elements arrive
-from level 3; a trio is first possible on level 4. Level 8 gives you two trios at
-once and asks which one this roll is for.
+from level 3; a trio is first possible on level 4. Levels 8 and 9 give you two
+trios at once and ask which one this roll is for — and they are also where a
+mega combo first fires, because three of one element and three of another is
+exactly the shape Chaos Mode wants.
+
+All six elements are dealt somewhere across the ten, so a player who clears level
+9 owns at least one of each and the level 10 boss is the first place a rainbow
+loadout can be equipped. Shadow rides on level 6 because 6 is where the Farkle
+penalty starts, and Nature on 7 beside Ice because both are about squeezing more
+takes out of a turn.
 
 | | | |
 | --- | --- | --- |
@@ -126,9 +160,14 @@ frame, which is also what lets the balance probe play thousands of them.
 The seams that keep it open:
 
 - `FarkleScorer` — stateless and static. Given dice and element rules, it returns
-  what a selection is worth and whether anything scores at all.
+  what a selection is worth. It answers "what *can* be taken" and "what is *worth*
+  taking" with two separate functions, because since the mega combos those are
+  two different questions and the first one is what greys a die out.
 - `ElementRules` — what the elements do, rebuilt per roll from the dice on the
   table. The scorer asks; it never decides.
+- `MegaCombo` — the three §2.3 shapes, as pure data and one predicate. Where a
+  fourth would go, and the reason a selection can now be worth less for being
+  bigger.
 - `Objective` — what a level asks for. Two questions now rather than one, because
   a level is many turns: `is_met()` after a bank, `is_failed()` when turns run out.
 - `LevelModifier` — a boss twist, configured into the level rather than consulted
@@ -186,9 +225,10 @@ godot --headless --script res://tools/balance_probe.gd
 ```
 
 Plays every level four hundred times with a deliberately mediocre bot — it takes
-everything that scores and banks on a fixed threshold, never reading the board —
-and reports the clear rate. The ten campaign levels currently measure between 45%
-and 67% for that bot, which should put a human comfortably above the design
+the best selection and banks on a fixed threshold, never reading the board and
+never valuing a die left behind — and reports the clear rate. Nine of the ten
+campaign levels currently measure between 50% and 55% for that bot, with level 1
+deliberately looser at 62%, which should put a human comfortably above the design
 document's 60% target.
 
 This is where `Campaign.TARGETS` came from. Rerun it after changing a target, a

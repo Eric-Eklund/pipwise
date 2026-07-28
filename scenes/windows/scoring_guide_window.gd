@@ -14,6 +14,7 @@ const TRIO_COLOR := Color(0.42, 0.85, 0.68)
 func show_rules(game : FarkleGame) -> void:
 	_add_scoring()
 	_add_combos()
+	_add_mega_combos(game)
 	_add_elements(game)
 	_add_boss(game)
 
@@ -40,6 +41,22 @@ func _add_combos() -> void:
 			"x%s" % _format(float(ElementRules.COMBO_MULTIPLIERS[count])),
 			NORMAL_COLOR
 		)
+
+## Section 2.3's combos, and the only place the game explains that taking fewer
+## dice can be worth more.
+##
+## Shown only on a level carrying two or more elements, which is the floor for
+## any of them — on a single-element bag none can fire and the page would be
+## teaching a rule the player cannot use, which is what the rest of this file
+## exists to avoid.
+func _add_mega_combos(game : FarkleGame) -> void:
+	if _bag_counts(game).size() < MegaCombo.CHAOS_MINIMUM_ELEMENTS:
+		return
+	add_line("Mega combos", HEADING_COLOR)
+	add_line("These read the shape of what you take, not just how much. One extra die can break one — sometimes the best take is not every die that scores.", MUTED_COLOR)
+	for id in MegaCombo.ALL:
+		add_row(MegaCombo.get_label(id), MegaCombo.get_effect_text(id), MegaCombo.get_color(id))
+		add_line("  %s" % MegaCombo.get_description(id), MUTED_COLOR)
 
 ## Only the elements this level actually deals out, with the trio line marked
 ## when three of them are in the bag and the stronger rule is reachable.

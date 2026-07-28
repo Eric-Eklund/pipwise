@@ -76,14 +76,44 @@ func test_a_late_level_hands_out_two_trios() -> void:
 	assert_eq(_count_of(bag, Element.ICE), 3, "three Ice")
 	assert_eq(_count_of(bag, Element.FIRE), 3, "three Fire")
 
-## The rainbow bag reaches no trio and repeats no element, so the combo ladder
-## never leaves x1 — it is the weakest bag in the game until the mega combos
-## exist. Pinned so it does not get dropped into the campaign as an upgrade.
+## No level *deals* the rainbow bag, even now that Elemental Master pays it.
+##
+## Not because it is weak any more, but because a bag spread across every element
+## reaches no trio and repeats nothing, so it pays only when all six dice score
+## at once — a straight or three pairs, and no more than a roll in twenty. That
+## is a build the player may choose from their own collection, at a boss, knowing
+## what they are taking on. It is not one a level should hand them and then
+## measure a target against.
 func test_no_level_hands_out_the_rainbow_bag() -> void:
 	for level in range(1, _campaign.level_count + 1):
 		assert_true(
 			_elements_in(_campaign.reference_bag_for(level)).size() <= 3,
 			"level %d does not spread itself across every element" % level
+		)
+
+## Elemental Master and Universal Overload both need all six elements, and grants
+## only ever top the collection up — so an element no level deals is one the
+## loadout screen can never offer, and two thirds of section 2.3 would be rules
+## about dice that do not exist. This is what keeps them reachable.
+func test_the_campaign_deals_every_element_somewhere() -> void:
+	var dealt : Dictionary = {}
+	for level in range(1, _campaign.level_count + 1):
+		for element in _elements_in(_campaign.grant_for(level)):
+			dealt[element] = true
+	for element in Element.ALL:
+		assert_true(dealt.has(element), "%s is dealt by some level" % element)
+
+## And reachable *in time to use*: the loadout screen only opens at level 1 and
+## the bosses, so the last element has to land before the last boss or the first
+## rainbow build a player can equip is one they never get to play.
+func test_every_element_is_owned_before_the_final_boss() -> void:
+	var collection := DiceCollection.create_starting()
+	for level in range(1, _campaign.level_count):
+		collection.grant_up_to(_campaign.grant_for(level))
+	for element in Element.ALL:
+		assert_true(
+			collection.owns(element),
+			"%s is owned by the time level %d offers a loadout" % [element, _campaign.level_count]
 		)
 
 func test_every_level_hands_out_six_dice() -> void:

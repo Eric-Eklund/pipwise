@@ -80,6 +80,11 @@ func show_score(score : DiceScore) -> void:
 	var combo := score.combo_text()
 	if combo.is_empty():
 		_play(score.parts_text(), "+%d" % score.total(), NEUTRAL_COLOR)
+	elif score.mega_combo != MegaCombo.NONE:
+		# Its own colour rather than the leading element's. A mega combo is a
+		# shape across several elements, so tinting it with one of them would
+		# name the wrong thing at the loudest moment in the game.
+		_play(combo, "+%d" % score.total(), MegaCombo.get_color(score.mega_combo))
 	else:
 		_play(combo, "+%d" % score.total(), Element.get_color(score.combo_element))
 

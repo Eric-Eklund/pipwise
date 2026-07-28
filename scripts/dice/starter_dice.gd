@@ -70,10 +70,15 @@ static func create_mixed_bag(spec : Array, count : int = 6, level : int = 1) -> 
 ## One die of every element, in Element.ALL order. The design document's
 ## "Elemental Balanced" build.
 ##
-## Weak in the MVP, and knowingly unused by the campaign because of it: with one
-## die per element nothing reaches a trio and nothing repeats, so the section
-## 2.1 combo ladder never leaves x1. The build only works once the section 2.3
-## mega combos exist, which is what Elemental Master is for.
+## With one die per element nothing reaches a trio and nothing repeats, so the
+## section 2.1 combo ladder never leaves x1. Section 2.3's Elemental Master is
+## the only rule that pays this bag anything, and it asks for all six dice to
+## score at once — a straight or three pairs, and no more than a roll in twenty.
+##
+## So it is not weak so much as feast-or-famine, and still knowingly unused by
+## the campaign: a level's target is measured against its bag, and a bag that
+## pays nothing four turns in five is not something to measure against. It is a
+## build the player may choose at a boss, having seen what it does.
 static func create_rainbow_bag(level : int = 1) -> BagDefinition:
 	var definition := BagDefinition.new()
 	definition.id = &"rainbow_bag"

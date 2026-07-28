@@ -69,6 +69,20 @@ happens to be disabled — the player stuck looking at dice they cannot act on.
 `tools/playthrough_probe.tscn` presses the real buttons and is the only thing
 that catches that.
 
+**What can be taken and what is worth taking are two questions.**
+`FarkleScorer.scorable_dice()` answers the first and drives tappability and
+Farkle detection; `best_selection()` answers the second, searches subsets, and
+drives only the Take button. Merge them again and a die the player is allowed to
+tap goes grey — the exact dead board the playthrough probe exists for.
+
+A subset wins for two unrelated reasons, and both are easy to forget. §2.3's
+Chaos Mode and Universal Overload are conditions a *further* die can break. And
+an element bonus is a percentage of a die's share of its own `ScorePart`, so
+adding a plain 5 to a pair of Ice 5s leaves the base at 500 and takes a third of
+each Ice die's bonus with it. The second predates the mega combos: the scorer
+carried a comment asserting it could not happen, and handed out the worse take on
+every Ice level. Both are pinned in `test_farkle_scorer.gd`.
+
 **Level scenes are generated, never hand-edited.** `tools/generate_campaign.gd`
 writes `resources/campaign.tres`, the ten `level_N.tscn` files, and the scene list
 inside `game_ui.tscn`. Hand-maintaining ten identical scenes invites exactly one
@@ -132,8 +146,8 @@ and why. Read that section before changing a scoring rule — several of the
 numbers look wrong and are not.
 
 Not built yet, in rough priority order: cards and spells (spec §3), the shop and
-currencies (§6), per-die levelling (§1.4), dice evolution and D8+ (§1.2), mega
-combos (§2.3), drop tables (§5.3).
+currencies (§6), per-die levelling (§1.4), dice evolution and D8+ (§1.2), drop
+tables (§5.3).
 
 Two known constraints worth keeping in mind:
 
@@ -141,6 +155,9 @@ Two known constraints worth keeping in mind:
   says. If every face scores, no roll can fail, so no Farkle can happen, so
   pushing is free and the game has no core. This is load-bearing and pinned by
   `test_farkle_scorer.gd`.
-- **The rainbow bag is the weakest in the game**, not the strongest, because one
-  die per element reaches no trio and repeats nothing. It becomes the build the
-  design document imagines only once the mega combos exist.
+- **The rainbow bag is feast-or-famine, not strong.** One die per element reaches
+  no trio and repeats nothing, so Elemental Master is the only rule that pays it
+  — and that needs all six dice to score at once, which is about one roll in
+  twenty. The campaign deals every element somewhere so the build is *available*,
+  but never deals the bag itself, because a measured target cannot sit on a bag
+  that pays nothing four turns in five.

@@ -401,6 +401,71 @@ func test_nature_hands_a_die_back_after_committing() -> void:
 	game.commit_selection()
 	assert_eq(game.get_dice_in_play().size(), 5, "four would be left without it")
 
+# --- mega combos and the two takeable questions ----------------------------
+
+## A bag that can produce the Chaos board: two Crystal, three Fire, one
+## Lightning. Taking all six is worth 4500; dropping the lone Lightning fires
+## Chaos Mode for 6500.
+func chaos_ruleset() -> Ruleset:
+	var ruleset := make_ruleset(100000, 5)
+	ruleset.bag_definition = StarterDice.create_mixed_bag([
+		[Element.CRYSTAL, 2], [Element.FIRE, 3], [Element.LIGHTNING, 1],
+	])
+	return ruleset
+
+## The shipping bug this whole split exists to prevent. The best selection now
+## leaves a scoring die behind, and if tappability were read off *that* the
+## player would be looking at a die they are allowed to take and cannot.
+func test_a_die_the_best_selection_drops_is_still_selectable() -> void:
+	var game := make_game(chaos_ruleset())
+	game.start()
+	force_faces(game, [1, 1, 6, 6, 6, 5])
+	var lightning : Die = game.get_dice_in_play()[5]
+
+	assert_eq(game.get_scorable_dice().size(), 6, "every die is a legal take")
+	assert_true(game.can_select(lightning), "including the one Chaos wants dropped")
+	assert_eq(game.get_best_selection().size(), 5, "but the best take is five")
+	assert_false(lightning in game.get_best_selection(), "without the Lightning")
+
+func test_the_take_button_reaches_for_the_best_selection() -> void:
+	var game := make_game(chaos_ruleset())
+	game.start()
+	force_faces(game, [1, 1, 6, 6, 6, 5])
+	game.select_all_scoring()
+	assert_eq(game.get_selection().size(), 5, "five, not six")
+	assert_eq(game.selection_score.total(), 6500, "the Chaos take")
+	assert_eq(game.selection_score.mega_combo, MegaCombo.CHAOS_MODE, "named")
+
+## The player is still allowed the worse take. Chaos is advice, not a rule.
+func test_the_player_may_take_everything_anyway() -> void:
+	var game := make_game(chaos_ruleset())
+	game.start()
+	force_faces(game, [1, 1, 6, 6, 6, 5])
+	for die in game.get_dice_in_play():
+		game.toggle_selection(die)
+	assert_eq(game.get_selection().size(), 6, "all six marked")
+	assert_true(game.can_commit_selection(), "and it commits")
+	assert_eq(game.selection_score.total(), 4500, "for less")
+
+## The caches are keyed on the board rather than invalidated by hand, because
+## force_faces() rewrites the dice without calling a single method. A dirty flag
+## was tried first and went stale in nineteen tests at once.
+func test_the_scoring_cache_follows_the_board() -> void:
+	var game := make_game()
+	game.start()
+	force_faces(game, [1, 5, 3, 4, 4, 4])
+	assert_eq(game.get_scorable_dice().size(), 5, "the 1, the 5 and three 4s")
+	force_faces(game, [2, 3, 4, 6, 6, 2])
+	assert_eq(game.get_scorable_dice().size(), 0, "and now nothing scores")
+
+func test_the_scorable_dice_are_handed_out_as_a_copy() -> void:
+	var game := make_game()
+	game.start()
+	force_faces(game, [1, 5, 3, 4, 4, 4])
+	var first := game.get_scorable_dice()
+	first.clear()
+	assert_eq(game.get_scorable_dice().size(), 5, "the cache survived the caller")
+
 func test_the_element_rules_are_rebuilt_for_the_dice_on_the_table() -> void:
 	var ruleset := make_ruleset(100000, 5)
 	ruleset.bag_definition = StarterDice.create_element_bag(Element.ICE, 3)
