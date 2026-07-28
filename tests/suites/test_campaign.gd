@@ -56,23 +56,23 @@ func test_the_farkle_penalty_starts_at_zero() -> void:
 
 func test_the_opening_levels_are_plain_dice() -> void:
 	for level in [1, 2]:
-		for die_type in _campaign.bag_for(level).dice:
+		for die_type in _campaign.reference_bag_for(level).dice:
 			assert_eq(die_type.element, Element.NONE, "level %d is elementless" % level)
 
 func test_elements_arrive_on_level_three() -> void:
-	var elements := _elements_in(_campaign.bag_for(3))
+	var elements := _elements_in(_campaign.reference_bag_for(3))
 	assert_true(elements.has(Element.FIRE), "Fire shows up")
 
 ## A trio is where the interesting element rules switch on, so the campaign has
 ## to hand out three of something before it can teach them.
 func test_a_trio_is_first_possible_on_level_four() -> void:
-	assert_true(_count_of(_campaign.bag_for(3), Element.FIRE) < 3, "not yet on 3")
-	assert_true(_count_of(_campaign.bag_for(4), Element.FIRE) >= 3, "a trio on 4")
+	assert_true(_count_of(_campaign.reference_bag_for(3), Element.FIRE) < 3, "not yet on 3")
+	assert_true(_count_of(_campaign.reference_bag_for(4), Element.FIRE) >= 3, "a trio on 4")
 
 ## Two trios at once is the most interesting bag in the MVP: both element rules
 ## are live and the player has to pick which one a given roll is for.
 func test_a_late_level_hands_out_two_trios() -> void:
-	var bag := _campaign.bag_for(8)
+	var bag := _campaign.reference_bag_for(8)
 	assert_eq(_count_of(bag, Element.ICE), 3, "three Ice")
 	assert_eq(_count_of(bag, Element.FIRE), 3, "three Fire")
 
@@ -82,13 +82,13 @@ func test_a_late_level_hands_out_two_trios() -> void:
 func test_no_level_hands_out_the_rainbow_bag() -> void:
 	for level in range(1, _campaign.level_count + 1):
 		assert_true(
-			_elements_in(_campaign.bag_for(level)).size() <= 3,
+			_elements_in(_campaign.reference_bag_for(level)).size() <= 3,
 			"level %d does not spread itself across every element" % level
 		)
 
 func test_every_level_hands_out_six_dice() -> void:
 	for level in range(1, _campaign.level_count + 1):
-		assert_eq(_campaign.bag_for(level).size(), 6, "level %d" % level)
+		assert_eq(_campaign.reference_bag_for(level).size(), 6, "level %d" % level)
 
 # --- bosses ----------------------------------------------------------------
 

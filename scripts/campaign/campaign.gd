@@ -103,13 +103,17 @@ func is_boss(level : int) -> bool:
 
 ## The authored ruleset for [param level] if there is one, otherwise a computed
 ## level. Never returns null.
-func get_ruleset(level : int) -> Ruleset:
+##
+## [param loadout] is what the player equipped. Null falls back to the reference
+## bag, which is what the balance probe and the tests want and what a level
+## dropped into the editor with nothing configured needs to still be playable.
+func get_ruleset(level : int, loadout : BagDefinition = null) -> Ruleset:
 	var authored := "%s/level_%d.tres" % [RULESET_DIR, level]
 	if ResourceLoader.exists(authored):
 		var ruleset : Ruleset = load(authored)
 		if ruleset != null:
 			return ruleset
-	return build_ruleset(level)
+	return build_ruleset(level, loadout)
 
 func target_for(level : int) -> int:
 	if TARGETS.has(level):
@@ -122,16 +126,38 @@ func turns_for(level : int) -> int:
 func penalty_for(level : int) -> int:
 	return farkle_penalty if level >= penalty_from_level else 0
 
-## The dice the player brings to [param level].
-func bag_for(level : int) -> BagDefinition:
+## The bag [param level]'s target was measured against.
+##
+## Not necessarily what the player brings — they equip from their own collection
+## now. This is the reference: the floor a level lends up to, and the set the
+## balance probe measures. Renamed from bag_for() so that nothing can quietly
+## treat it as the loadout again.
+func reference_bag_for(level : int) -> BagDefinition:
 	if ELEMENT_SCHEDULE.has(level):
 		return StarterDice.create_mixed_bag(ELEMENT_SCHEDULE[level])
 	return StarterDice.create_starter_bag()
 
-func build_ruleset(level : int) -> Ruleset:
+## What clearing [param level] adds to the collection, as a bag to top up to.
+##
+## The same data as the reference bag, deliberately. A separate drop table would
+## be a second place to keep in sync with the curve, and it would drift: the
+## targets were measured against these exact dice, so these are the dice the
+## player has to end up owning.
+func grant_for(level : int) -> BagDefinition:
+	return reference_bag_for(level)
+
+## Whether a lost run restarts from [param level]. The bosses, because a run is
+## ten levels and losing the ninth should not cost all nine.
+func is_checkpoint(level : int) -> bool:
+	return level == 1 or BOSSES.has(level)
+
+func build_ruleset(level : int, loadout : BagDefinition = null) -> Ruleset:
 	var ruleset := Ruleset.new()
 	ruleset.id = StringName("level_%d" % level)
-	ruleset.bag_definition = bag_for(level)
+	# The loadout is raised to the level's reference bag rather than trusted as
+	# it stands. It was chosen at the last checkpoint and the references escalate
+	# behind it, so without this a build picked on level 1 walks into level 9.
+	ruleset.bag_definition = DiceCollection.apply_floor(loadout, reference_bag_for(level))
 	ruleset.turns = turns_for(level)
 	ruleset.farkle_penalty = penalty_for(level)
 
