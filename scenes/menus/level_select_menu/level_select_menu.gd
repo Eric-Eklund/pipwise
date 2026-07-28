@@ -34,21 +34,11 @@ func add_levels_to_container() -> void:
 ## Orders two level paths by their trailing number, falling back to the path
 ## itself for anything that is not numbered.
 func _before(first, second) -> bool:
-	var first_number := _level_number(String(first))
-	var second_number := _level_number(String(second))
+	var first_number := Campaign.level_number_from_path(String(first))
+	var second_number := Campaign.level_number_from_path(String(second))
 	if first_number == second_number:
 		return String(first) < String(second)
 	return first_number < second_number
-
-## The number in a name like "level_12.tscn", or -1 when there is none.
-func _level_number(path : String) -> int:
-	var name := path.get_file().trim_suffix(".tscn")
-	var digits := ""
-	for index in range(name.length() - 1, -1, -1):
-		if not name[index].is_valid_int():
-			break
-		digits = name[index] + digits
-	return int(digits) if digits.is_valid_int() else -1
 
 func _on_level_buttons_container_item_activated(index: int) -> void:
 	GameState.set_checkpoint_level_path(level_paths[index])

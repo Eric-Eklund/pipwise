@@ -19,6 +19,42 @@ const FILE_PATH = "res://scripts/game_state.gd"
 @export var loadout : Array[StringName] = []
 ## Runs finished, won or lost. Read by the run summary.
 @export var runs_played : int = 0
+## The attempt in progress. Null between runs.
+@export var run : RunState
+## The level a lost run starts again from. Permanent progress rather than run
+## progress: reaching a boss means every future run begins there.
+@export var checkpoint_level : int = 1
+
+## The run in progress, starting a new one from the checkpoint if there is none.
+static func get_run() -> RunState:
+	var game_state := get_or_create_state()
+	if game_state.run == null:
+		game_state.run = RunState.create(game_state.checkpoint_level)
+		GlobalState.save()
+	return game_state.run
+
+## Ends the run and returns what it amounted to, so the summary has something to
+## show before it is thrown away.
+static func end_run() -> RunState:
+	var game_state := get_or_create_state()
+	var finished := game_state.run
+	game_state.run = null
+	game_state.runs_played += 1
+	# The loadout goes with the run. Keeping it would mean the next attempt
+	# silently starts with whatever lost the last one, which is the opposite of
+	# choosing a build.
+	game_state.loadout = []
+	GlobalState.save()
+	return finished if finished != null else RunState.create(game_state.checkpoint_level)
+
+## Raises the checkpoint. Only ever moves forward — a run that falls back and
+## re-clears a boss must not be able to lower it.
+static func reach_checkpoint(level : int) -> void:
+	var game_state := get_or_create_state()
+	if level <= game_state.checkpoint_level:
+		return
+	game_state.checkpoint_level = level
+	GlobalState.save()
 
 ## Never returns null: a save from before the collection existed, or a brand new
 ## one, gets the starting six.
@@ -121,4 +157,6 @@ static func reset() -> void:
 	game_state.dice_collection = DiceCollection.create_starting()
 	game_state.loadout = []
 	game_state.runs_played = 0
+	game_state.run = null
+	game_state.checkpoint_level = 1
 	GlobalState.save()

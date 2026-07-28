@@ -16,14 +16,24 @@ var passed : int = 0
 var _current : String = ""
 
 ## Runs every method named test_*. Returns the failure messages.
+##
+## A test that reaches no assertion is treated as a failure. GDScript keeps going
+## after a runtime error — calling a method that no longer exists prints and
+## returns — so a test whose subject was renamed out from under it stops
+## asserting anything and still reports PASS. That happened: two tests kept
+## passing for a while after the function they called had been moved, and the
+## only visible sign was the suite's total quietly dropping by three.
 func run() -> Array[String]:
 	failures.clear()
 	passed = 0
 	for method_name in _find_test_methods():
 		_current = method_name
+		var before := passed + failures.size()
 		before_each()
 		call(method_name)
 		after_each()
+		if passed + failures.size() == before:
+			_fail("reached no assertion", "the body errored or asserts nothing")
 	return failures
 
 ## Override to build fixtures before each test.

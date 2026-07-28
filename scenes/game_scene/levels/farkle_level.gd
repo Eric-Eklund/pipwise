@@ -329,6 +329,8 @@ func _show_tutorial_once() -> void:
 func _on_level_won() -> void:
 	_record_result(true)
 	_grant_dice()
+	GameState.get_run().clear_level(game.context.banked_score, game.context.farkle_count)
+	GlobalState.save()
 	win()
 
 ## Clearing a level pays the dice it showed you, permanently.
@@ -348,8 +350,13 @@ func _grant_dice() -> void:
 		names.append("%d %s" % [int(granted[element]), Element.get_label(element)])
 	_set_notice("Earned %s" % " and ".join(names), HINT_COLOR)
 
+## The run's tally is updated here, but the run is *ended* by the level manager.
+## A level does not get to decide that the attempt is over — endless levels lose
+## too, and they are not part of a campaign run at all.
 func _on_level_lost() -> void:
 	_record_result(false)
+	GameState.get_run().record_loss(game.context.farkle_count)
+	GlobalState.save()
 	lose()
 
 ## Persists the run so level select and progression have something to read.

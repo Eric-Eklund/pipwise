@@ -138,16 +138,20 @@ func test_pushing_rolls_the_dice_that_are_left() -> void:
 	game.push()
 	assert_eq(game.get_dice_in_play().size(), 5, "five still rolling")
 
-func test_pushing_keeps_the_turn_score_at_risk() -> void:
+## Both outcomes assert, because a push has exactly two and either branch on its
+## own leaves the test vacuous whenever the dice go the other way — which is how
+## this one spent a while asserting nothing at all.
+func test_pushing_either_keeps_the_turn_score_or_farkles_it_away() -> void:
 	var game := make_game()
 	game.start()
 	force_faces(game, [1, 2, 3, 4, 6, 2])
 	take_all(game)
 	var before := game.context.turn_score
 	game.push()
-	# The turn score survives the roll itself; only a Farkle takes it.
-	if game.state == FarkleGame.State.CHOOSING:
-		assert_eq(game.context.turn_score, before, "still riding")
+	if game.state == FarkleGame.State.FARKLED:
+		assert_eq(game.context.turn_score, 0, "a Farkle takes all of it")
+	else:
+		assert_eq(game.context.turn_score, before, "otherwise it is all still riding")
 
 # --- hot dice --------------------------------------------------------------
 
@@ -159,14 +163,16 @@ func test_clearing_the_table_brings_every_die_back() -> void:
 	assert_eq(game.get_dice_in_play().size(), 6, "all six back")
 	assert_eq(game.context.pool.set_aside_count(), 0, "nothing set aside")
 
+## Three 1s and three 5s: 1000 + 500, carried through the hot dice reroll. The
+## fresh roll can immediately Farkle it away again, so both branches assert.
 func test_hot_dice_keep_the_turn_score() -> void:
 	var game := make_game()
 	game.start()
 	force_faces(game, [1, 1, 1, 5, 5, 5])
 	take_all(game)
-	# Three 1s and three 5s: 1000 + 500. A Farkle on the fresh roll would take
-	# it back, so only assert when the turn survived.
-	if game.state == FarkleGame.State.CHOOSING:
+	if game.state == FarkleGame.State.FARKLED:
+		assert_eq(game.context.turn_score, 0, "the fresh roll took it back")
+	else:
 		assert_eq(game.context.turn_score, 1500, "carried into the new roll")
 
 # --- farkle ----------------------------------------------------------------

@@ -25,18 +25,11 @@ func _sorted(paths : Array) -> Array:
 func _path(level : int) -> String:
 	return "res://scenes/game_scene/levels/level_%d.tscn" % level
 
-# --- reading the number -------------------------------------------------
-
-func test_the_number_comes_off_the_file_name() -> void:
-	assert_eq(_menu._level_number(_path(7)), 7)
-	assert_eq(_menu._level_number(_path(30)), 30)
-
-func test_a_level_without_a_number_sorts_last_resort() -> void:
-	assert_eq(
-		_menu._level_number("res://scenes/game_scene/levels/endless_level.tscn"), -1
-	)
-
 # --- the order ----------------------------------------------------------
+
+# Reading the number out of a path is Campaign.level_number_from_path now, and
+# is tested in test_run_state — the level manager decides checkpoints with the
+# same function, so it belongs with the rule rather than with the menu.
 
 func test_double_digit_levels_do_not_jump_the_queue() -> void:
 	var sorted := _sorted([_path(10), _path(2), _path(1), _path(20), _path(3)])

@@ -151,6 +151,21 @@ func grant_for(level : int) -> BagDefinition:
 func is_checkpoint(level : int) -> bool:
 	return level == 1 or BOSSES.has(level)
 
+## The number in a path like "res://…/level_7.tscn", or -1 for anything without
+## one — which is what endless is, and why it can never be a checkpoint.
+##
+## Static and here rather than in the two places that used to parse it for
+## themselves: the level select menu sorts by it and the level manager decides
+## checkpoints by it, and two copies of the same parser is one copy too many.
+static func level_number_from_path(level_path : String) -> int:
+	var name := level_path.get_file().trim_suffix(".tscn")
+	var digits := ""
+	for index in range(name.length() - 1, -1, -1):
+		if not name[index].is_valid_int():
+			break
+		digits = name[index] + digits
+	return int(digits) if digits.is_valid_int() else -1
+
 func build_ruleset(level : int, loadout : BagDefinition = null) -> Ruleset:
 	var ruleset := Ruleset.new()
 	ruleset.id = StringName("level_%d" % level)
