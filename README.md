@@ -49,7 +49,7 @@ are on the table.
 | 🔥 Fire | Scored 6s pay +50% | Triples of 6 pay +200 more |
 | ❄️ Ice | Dice in a matched set pay +100% | **Pairs score as triples** |
 | ⚡ Lightning | Scored 4s, 5s and 6s pay double | They pay triple instead |
-| 🌿 Nature | An even pip total returns a die to the table | Two come back |
+| 🌿 Nature | An even pip total returns a die to the table, rolled again | Two come back |
 | ☠️ Shadow | Halves the Farkle penalty | A Farkle *pays* you |
 | 💎 Crystal | Scored 1s pay triple | 1s pay quadruple, and a straight pays +1000 |
 
@@ -106,6 +106,11 @@ and they go when the run does.
 The budget is taken once, at the top of the turn, and does not move afterwards —
 a wallet that shrank when you rolled badly would be a wallet you could not plan
 against.
+
+A potion needs its element on the table. Draw Frost Shield on a level with no ❄️
+Ice and it greys out and waits for the level that has some, rather than letting
+you spend six energy on doubling nothing. **Hold a card down** to see what it
+does, what its element is for, and why it will not go.
 
 Shield is the interesting one. It does not hand the roll back; a dead board is
 still a dead board. What it buys is keeping the points you had already earned,

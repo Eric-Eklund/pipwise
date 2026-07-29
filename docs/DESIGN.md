@@ -424,7 +424,7 @@ identity. The other four are the document's own wording.
 | 🔥 Fire | Scored 6s pay +50% | exact |
 | ❄️ Ice | Dice in a matched set pay +100% | **reinterpreted** — "pairs +100%" has nothing to multiply, since a bare pair scores nothing |
 | ⚡ Lightning | Scored 4-6 pay double | exact |
-| 🌿 Nature | An even pip total returns a die | exact, but see below on *which* sum |
+| 🌿 Nature | An even pip total returns a die, **rolled again** | see below on *which* sum, and on the roll |
 | ☠️ Shadow | Halves the Farkle penalty | exact |
 | 💎 Crystal | Scored 1s pay triple | exact |
 
@@ -449,6 +449,17 @@ always, and Nature would quietly mean "a free die, every single turn".
 The build reads the **pips on the scored dice**. That is a real coin flip, it is
 the number the player is looking at, and it matches the word *sum* better than a
 multiplied, bonused, rounded score does.
+
+**And the die it returns is rolled.** The document does not say, and handing it
+back on the face it was set aside with looked like the smaller change. It is a
+scoring loop: the die was set aside *because* that face scored, so it comes back
+still scoring, and the same take is available again. Two Nature 5s close the
+circle — ten pips is even, which returns them, which offers the identical
+selection — and Earth Restore hands back one more each time round. The
+playthrough probe found a turn worth 454,500 and was still counting when it hit
+its step limit. Rolling makes a returned die what "+1 die" has to mean for it to
+be a gamble rather than a rebate: it decides the *next* selection, not this one.
+Second Wind gives the same answer to the same question (deviation 8).
 
 ### 5. The rainbow bag is feast-or-famine, not strong — **resolved**
 
@@ -558,6 +569,30 @@ like it would cover all six neatly, and it is dead for two of them. **Nature and
 Shadow pay no points at all**; Nature returns dice and Shadow softens a bust.
 Four potions are the uniform kind and two are their own effects, which is why
 `ElementBoostCard` covers Fire, Ice, Lightning and Crystal and no more.
+
+**A potion is refused on a board without its element.** This reverses an earlier
+decision, recorded here because the earlier one was deliberate and argued: a
+potion for an element you did not bring is a bad draw, and Discard Swap is the
+answer to a hand of them. That is still true. What it missed is §5's schedule.
+The campaign deals **no elements at all until level 3**, and each element arrives
+once — Lightning on 6, Nature on 7 — so at most two of the six potions can pay on
+any level, and none can on the two levels where a new player first meets the
+hand. Every one of them was drawn bright, buyable, and worth nothing, and the
+first thing a player did with the card row was spend a quarter of a turn's energy
+on a card that did not move a single number. `can_play()` now answers false when
+the element is not in play, which costs the player nothing: the card sits in hand
+until the level it was drawn for.
+
+`ShadowVeilCard` is deliberately **not** guarded this way. It carries
+`Element.SHADOW` for its name and its colour and nothing else — it grants the
+trio's effect outright rather than multiplying a die's share, so it pays on a
+board with no Shadow die anywhere.
+
+Holding a card down opens `CardDetailWindow`, which is where the refusal is
+explained. That window is the only place the game says *why* a card will not go,
+so it answers for a greyed out card as readily as a bright one — which is why
+`CardView` times its hold off `_gui_input` rather than `button_down`: a disabled
+Button emits no button signals at all.
 
 **A card's "one round" is one turn**, not one level. §4's stage flow reads as a
 level, but its steps are a single push-your-luck sequence, which is a turn here.

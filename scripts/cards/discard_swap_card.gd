@@ -14,5 +14,8 @@ extends Card
 func can_play(game) -> bool:
 	return game != null and game.hand != null and game.hand.size() > 1
 
+func get_refusal(_game) -> String:
+	return "No other cards to swap."
+
 func on_played(game) -> void:
 	game.hand.swap_all()

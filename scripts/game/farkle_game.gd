@@ -289,7 +289,7 @@ func commit_selection() -> bool:
 	took.emit(score, taken)
 
 	if score.dice_restored > 0:
-		context.pool.restore(score.dice_restored)
+		_return_to_table(context.pool.restore(score.dice_restored))
 
 	if context.pool.is_exhausted():
 		context.pool.reset_for_hot_dice()
@@ -303,6 +303,26 @@ func commit_selection() -> bool:
 	score_changed.emit()
 	_refresh_selection_score()
 	return true
+
+## Rolls the dice Nature just handed back.
+##
+## Without this they arrive on the face they were set aside with — and they were
+## set aside because that face scored, so they are still scoring, and the player
+## can take the same dice again for the same points. That is not a rounding
+## error: two Nature 5s sum to ten pips, which is even, which restores them both,
+## which makes the identical selection available again. The playthrough probe
+## found a turn worth 454,500 doing it, and it would have been worth more if the
+## step limit had been higher.
+##
+## Rolling is the same answer Second Wind gives to the same question, and it is
+## what "you get a die back" has to mean for the die to be a gamble rather than a
+## rebate. The pips it restores on decide the *next* selection, not this one.
+##
+## Deliberately not a rule about scoring the same die twice. A die that comes
+## back and rolls a 1 may be taken again, and should be — it is a new roll.
+func _return_to_table(dice : Array[Die]) -> void:
+	for die in dice:
+		die.roll(_rng)
 
 # --- cards -----------------------------------------------------------------
 
@@ -337,6 +357,29 @@ func can_play_card(card : Card) -> bool:
 	if not context.can_afford(card.energy_cost):
 		return false
 	return card.can_play(self)
+
+## Why [param card] cannot be played right now, in one line, or "" when it can.
+##
+## The same shape as get_bank_requirement_text(), and for the same reason: the
+## row can only say yes or no by greying a card out, and on a phone there is no
+## hover to explain the difference. This is the sentence the card's own detail
+## window shows when the player holds it down and asks.
+##
+## Ordered cheapest question first, and the card's own objection last, because a
+## card refused for three reasons at once should name the one the player can do
+## something about soonest.
+func get_card_refusal(card : Card) -> String:
+	if card == null or hand == null or not hand.holds(card.id):
+		return ""
+	if state != State.CHOOSING:
+		return "Cards are played while the dice are still on the table."
+	if not context.can_afford(card.energy_cost):
+		return "Costs %d⚡, and the turn has %d left." % [
+			card.energy_cost, context.available_energy()
+		]
+	if not card.can_play(self):
+		return card.get_refusal(self)
+	return ""
 
 ## Pays for a card and plays it. The energy goes first, then the card leaves the
 ## hand, then it takes effect — in that order, so a card that draws cards cannot

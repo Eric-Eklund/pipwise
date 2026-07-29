@@ -70,6 +70,26 @@ func can_play(_game) -> bool:
 func on_played(_game) -> void:
 	pass
 
+## Why the board will not take this card, in one line. Empty when can_play() is
+## happy with it.
+##
+## Only ever about can_play(). Whether the turn is live and whether the energy
+## is there are FarkleGame's questions and it answers those itself — see
+## FarkleGame.get_card_refusal(), which is what the detail window actually asks.
+func get_refusal(_game) -> String:
+	return ""
+
+## Whether the element this card is about is on the table at all. What the
+## potions guard on: a potion multiplies its own element's share of the score
+## and nothing else, so on a board without that element it multiplies nothing.
+##
+## Counted on the dice **in play**, not the whole bag. A die already set aside
+## has been scored and cannot be scored again, so its element has nothing left
+## to pay — and hot dice, which is the one thing that brings it back, rebuilds
+## these rules on its way past.
+func _element_is_in_play(game) -> bool:
+	return game != null and game.rules != null and game.rules.count_of(element) > 0
+
 # --- the questions ElementRules asks ---------------------------------------
 
 ## What this card multiplies [param card_element]'s bonus by while it is active.

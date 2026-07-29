@@ -38,6 +38,8 @@ const BOSS_DRAW := 3
 @export var tutorial_scene : PackedScene
 ## Opened by the HUD's ? button: what scores and what the elements do.
 @export var guide_scene : PackedScene
+## Opened by holding a card down: what it does, and why it will not go.
+@export var card_detail_scene : PackedScene
 ## Shown at the start of a run and before each boss: pick the six dice.
 @export var loadout_scene : PackedScene
 
@@ -66,6 +68,7 @@ func _ready() -> void:
 	super()
 	_dice_tray.die_pressed.connect(_on_die_pressed)
 	_card_row.card_pressed.connect(_on_card_pressed)
+	_card_row.card_held.connect(_on_card_held)
 	_score_hud.guide_requested.connect(_on_guide_requested)
 	# The banner parks itself above the tray, and the tray moves whenever the
 	# set aside row appears or the window changes shape.
@@ -388,6 +391,16 @@ func _refresh_hint() -> void:
 		_show_hint("Tap the dice that score, then Take", HINT_COLOR)
 
 # --- windows ----------------------------------------------------------------
+
+## Holding a card down asks what it is and why it will or will not go. Answered
+## for a greyed out card as readily as a bright one — that is the whole point,
+## since a card the row has refused is the one the player has a question about.
+func _on_card_held(card : Card) -> void:
+	if card_detail_scene == null:
+		return
+	var window := card_detail_scene.instantiate()
+	add_child(window)
+	window.show_card(card, game)
 
 ## The guide is built from this level's own rules, so a boss's twist shows up in
 ## it rather than a generic table that quietly lies.

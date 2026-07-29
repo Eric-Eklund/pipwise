@@ -22,8 +22,9 @@ extends Card
 ## wearing a dice card's name. Rolling it is what makes it a gamble again: the
 ## die can come back worth nothing.
 ##
-## Nature is deliberately left alone. It restores on the old face, which is its
-## own rule and its own balance — see ElementRules.dice_restored().
+## Nature now does the same, for the same reason and at a higher price: handing
+## its dice back unrolled turned out to be a scoring loop with no exit. See
+## FarkleGame._return_to_table().
 
 ## Dice this brings back.
 @export_range(1, 6) var count : int = 1
@@ -38,6 +39,11 @@ extends Card
 ## project keeps a whole probe for, and the guard is cheaper than the escape.
 func can_play(game) -> bool:
 	return game != null and game.get_pool().set_aside_count() > count
+
+func get_refusal(game) -> String:
+	if game.get_pool().set_aside_count() == 0:
+		return "Nothing set aside to bring back."
+	return "The last die set aside has to stay, or there is nothing left to roll against."
 
 func on_played(game) -> void:
 	# Through the game's own seeded stream, like every other roll in the engine:
