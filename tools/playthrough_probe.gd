@@ -31,6 +31,12 @@ extends Node
 ## open its detail window even when the card is greyed out, which is the only
 ## place the game says *why* it is greyed out — see _check_card_hold().
 ##
+## Cards that ask for a die are answered through the tray, at the die's own rect
+## — see _target_a_die(). That step is worth pressing rather than calling,
+## because the board refuses Take, Roll and Bank while a card is waiting: a die
+## the tray lights up and no finger can reach is the deadlock this probe exists
+## for, wearing a card's name.
+##
 ## A scene rather than a `--script`, because the levels reach GameState on ready
 ## and the autoloads only exist when a scene is run.
 ##
@@ -112,10 +118,10 @@ func _check_card_hold() -> void:
 	await get_tree().process_frame
 
 	var row : Control = level.find_child("CardRow", true, false)
-	var target : Button = null
+	var target : CardView = null
 	var greyed := false
-	for view in row.find_children("*", "Button", true, false):
-		var button := view as Button
+	for view in _card_views(row):
+		var button := view
 		# A refused card first, an offered one only as a fallback: the hand is
 		# dealt from a seeded deck and need not contain one of each.
 		if button.disabled and not greyed:
@@ -133,9 +139,11 @@ func _check_card_hold() -> void:
 			_failures.append("card hold: holding %s opened no window (greyed: %s)" % [
 				target.card.display_name, greyed
 			])
-		elif level.game.context.energy_spent != spent_before:
+		elif level.game.context.energy_spent != spent_before or level.game.is_targeting():
 			# A press is either a tap or a hold. Paying for the card *and*
-			# opening its window is two actions bought with one finger.
+			# opening its window is two actions bought with one finger — and so is
+			# opening the window on a board that is now waiting for a die, which is
+			# what a targeted card does instead of spending energy.
 			_failures.append("card hold: holding %s also played it" % target.card.display_name)
 		else:
 			print("  %-10s held %s, window opened, card not spent" % [
@@ -297,6 +305,15 @@ func _drive(level : FarkleLevel) -> String:
 		var bad_energy := _check_energy(level)
 		if not bad_energy.is_empty():
 			return bad_energy
+		# A card waiting for a die refuses Take, Roll and Bank, so a step that
+		# started here would report a deadlock that is really a question. Answered
+		# first, and answered through the tray, so the dice a card lights up have
+		# to be reachable where they are drawn.
+		if game.is_targeting():
+			var unanswered := await _target_a_die(level)
+			if not unanswered.is_empty():
+				return unanswered
+			continue
 		match game.state:
 			FarkleGame.State.WON:
 				return "won"
@@ -360,12 +377,22 @@ func _play_a_card(level : FarkleLevel) -> String:
 		return ""
 
 	# Energy rather than the hand size, because the hand is not a reliable
-	# witness: Draw 2 discards one card and draws two, so a full hand is the
-	# same size afterwards. Every card costs something, and nothing else in a
-	# turn spends energy.
+	# witness: a card can put dice on the table or take them off it, and the hand
+	# is the same size either way. Every card costs something, and nothing else
+	# in a turn spends energy.
 	var spent_before := level.game.context.energy_spent
 	var at := button.get_global_rect().get_center()
 	_tap(at)
+
+	# A targeted card has not been paid for yet — the energy leaves when the die
+	# is picked, which is the next thing that has to happen. Answered here rather
+	# than left to the next step, so that the tap and the answer are one action
+	# the way they are for a player.
+	if level.game.is_targeting():
+		var unanswered := await _target_a_die(level)
+		if not unanswered.is_empty():
+			return unanswered
+
 	if level.game.context.energy_spent != spent_before:
 		return "played"
 
@@ -378,12 +405,72 @@ func _play_a_card(level : FarkleLevel) -> String:
 		return "the row drew a card as playable that the game then refused"
 	return "a card answered pressed() but not a tap at %s" % at
 
-func _first_playable_card(row : Control) -> Button:
-	for view in row.find_children("*", "Button", true, false):
-		var button := view as Button
+func _first_playable_card(row : Control) -> CardView:
+	for view in _card_views(row):
+		if not view.disabled:
+			return view
+	return null
+
+## The cards in the row, and nothing else in it. The row also holds the
+## targeting bar's buttons, and a probe that tapped Cancel believing it was a
+## card would spend a step doing nothing and never say so.
+func _card_views(row : Control) -> Array[CardView]:
+	var views : Array[CardView] = []
+	if row == null:
+		return views
+	for node in row.find_children("*", "CardView", true, false):
+		views.append(node as CardView)
+	return views
+
+## Answers a card that is waiting for a die, through the tray, at the die's own
+## rect. Returns "" when the card was given one and a failure otherwise.
+##
+## Through a real tap for the same reason the hand is: the dice a card lights up
+## are a set the tray decides on the fly, and a die drawn where no finger can
+## reach it looks exactly like a card that does nothing.
+##
+## A card that cannot be answered is cancelled rather than left waiting. The
+## board refuses Take, Roll and Bank while one is, so leaving it would turn one
+## bad card into a level that never reaches a verdict — and the failure this
+## returns names the card, which is the thing worth knowing.
+func _target_a_die(level : FarkleLevel) -> String:
+	var card := level.game.get_targeting_card()
+	# The tray relights itself on the signal that opened this step, and a view
+	# that has just been enabled has no rect until the container has sorted.
+	await get_tree().process_frame
+
+	var die_button := _first_targetable_die(level)
+	if die_button == null:
+		_cancel_targeting(level)
+		return "%s asked for a die and the tray offered none" % card.display_name
+
+	var at := die_button.get_global_rect().get_center()
+	_tap(at)
+	if level.game.is_targeting():
+		_cancel_targeting(level)
+		return "%s could not be given the die at %s" % [card.display_name, at]
+	return ""
+
+func _first_targetable_die(level : FarkleLevel) -> Button:
+	var tray : Control = level.find_child("DiceTray", true, false)
+	if tray == null:
+		return null
+	for node in tray.find_children("*", "DieView", true, false):
+		var button := node as Button
 		if not button.disabled:
 			return button
 	return null
+
+## Backs a level out of a targeting step, through the row's own Cancel button.
+## A card waiting for a die has no other way off the board, so the button being
+## there and working is itself worth proving.
+func _cancel_targeting(level : FarkleLevel) -> void:
+	var cancel : Button = level.find_child("CancelTargetButton", true, false)
+	if cancel != null and not cancel.disabled:
+		cancel.pressed.emit()
+	if level.game.is_targeting():
+		_failures.append("a targeting step could not be cancelled from the row")
+		level.game.cancel_targeting()
 
 ## Aims a press and a release at [param at]. Both are needed: a Button fires on
 ## release by default, and a release on its own is not a press.

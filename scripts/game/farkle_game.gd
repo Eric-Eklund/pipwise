@@ -43,6 +43,10 @@ signal hot_dice
 ## card that moved the dice and did not say so would leave the old face on
 ## screen while the engine scored the new one.
 signal card_played(card : Card, rerolled : Array[Die])
+## A card is waiting for the player to pick a die, or has stopped waiting.
+## Carries the card, or null when the step is over — the row draws its prompt
+## off this and the tray relights itself.
+signal targeting_changed(card : Card)
 signal turn_started(turn : int)
 signal state_changed(new_state : State)
 signal level_won
@@ -75,9 +79,19 @@ var hand : CardHand
 
 var _rng : RngService
 var _objective : Objective
-## Cards played this turn and still in force. Cleared at the top of every turn:
-## section 3 calls their duration "one round", and a round here is a turn.
+## Cards played and still in force, whether that is until the next roll or until
+## the turn ends. Both are cleared here — see _expire() and _begin_turn().
 var _active_cards : Array[Card] = []
+## The card waiting for the player to pick a die, or null.
+##
+## A targeted card is paid for when the die is tapped, not when the card is:
+## backing out has to leave the turn exactly as it was, and refunding the
+## energy, un-discarding the card and un-applying the effect is three places to
+## get one thing wrong.
+var _targeting : Card = null
+## Which of the waiting card's choices is armed, as an index into
+## target_choices(). Value Shift's +1 and -1 are the only ones so far.
+var _target_choice : int = 0
 ## Dice the player has marked but not yet committed. Marking is reversible;
 ## committing is not, which is why the two are separate.
 var _selection : Array[Die] = []
@@ -131,6 +145,7 @@ func start() -> void:
 func _begin_turn() -> void:
 	context.pool.reset_turn()
 	_active_cards.clear()
+	cancel_targeting()
 	_clear_selection()
 	for modifier in ruleset.modifiers:
 		modifier.on_turn_start(context)
@@ -144,6 +159,11 @@ func _begin_turn() -> void:
 
 ## Rolls whatever is still in play and works out whether the turn survived it.
 func _roll() -> void:
+	# A card that lasts "one roll" is spent by the next one. Cleared before the
+	# dice move, so the rules the new board is built from are the new board's —
+	# and so Forced Reroll, which is what let this roll happen at all, cannot go
+	# on forbidding the bank once the player has done as it said.
+	_expire(Card.Duration.ROLL)
 	context.pool.roll()
 	_clear_selection()
 	# After the roll: a trio depends on the dice that are on the table now.
@@ -159,10 +179,16 @@ func _roll() -> void:
 ## Whether the player may push. Pushing is only meaningful once something has
 ## been committed — rolling again without setting a die aside would be a free
 ## retry, which is the one thing Farkle must never allow.
+##
+## Forced Reroll buys exactly that retry, once, and pays for it with the bank:
+## while it is in force can_bank() is false, so the turn cannot be ended until
+## the roll it demanded has happened. That is the only route around the rule
+## above, and it is deliberately the expensive one.
 func can_push() -> bool:
 	return state == State.CHOOSING \
+		and not is_targeting() \
 		and _selection.is_empty() \
-		and context.pool.set_aside_count() > 0 \
+		and (context.pool.set_aside_count() > 0 or rules.forces_reroll()) \
 		and not context.pool.is_exhausted()
 
 ## Rolls again with the dice that are left, the turn's points still at risk.
@@ -242,12 +268,18 @@ func get_selection() -> Array[Die]:
 func can_select(die : Die) -> bool:
 	if state != State.CHOOSING or die == null or die.is_set_aside:
 		return false
+	# While a card is waiting for a die, a tap means "this one" and nothing else.
+	# The tray asks can_target() instead — see DieView.refresh_state().
+	if is_targeting():
+		return false
 	return die in get_scorable_dice()
 
 ## Marks or unmarks a die. Free and reversible — nothing is spent until the
 ## selection is committed, so the player can try a combination and change their
 ## mind without being punished for experimenting.
 func toggle_selection(die : Die) -> bool:
+	if is_targeting():
+		return false
 	if die in _selection:
 		_selection.erase(die)
 	elif can_select(die):
@@ -268,8 +300,18 @@ func select_all_scoring() -> void:
 
 func can_commit_selection() -> bool:
 	return state == State.CHOOSING \
+		and not is_targeting() \
 		and selection_score != null \
 		and selection_score.is_valid()
+
+## Unmarks everything. Forced Reroll's doing: can_push() refuses to roll over
+## marked dice, so a card that granted the push and left the marks in place
+## would have granted nothing the player could act on.
+func clear_selection() -> void:
+	if _selection.is_empty():
+		return
+	_clear_selection()
+	selection_changed.emit()
 
 ## Commits the marked dice to the turn: their points join the turn score and the
 ## dice leave the table. The only irreversible move inside a turn.
@@ -342,15 +384,20 @@ func get_hand() -> Array[Card]:
 func get_active_cards() -> Array[Card]:
 	return _active_cards.duplicate()
 
-## Whether [param card] can be played: the turn is live, it is in hand, the
-## energy is there, and the card itself is willing.
+## Whether [param card] can be played: the turn is live, nothing else is waiting
+## on the player, it is in hand, the energy is there, and the card itself is
+## willing.
 ##
 ## Only during CHOOSING. A card played on a busted board would be paying to
-## change a roll that has already failed, and Shield is bought *before* the roll
-## it protects for exactly that reason — otherwise pushing is free and the game
-## loses its core.
+## change a roll that has already failed, and Farkle Shield is bought *before*
+## the roll it protects for exactly that reason — otherwise pushing is free and
+## the game loses its core.
 func can_play_card(card : Card) -> bool:
 	if card == null or hand == null or state != State.CHOOSING:
+		return false
+	# One card at a time. A second card played while the first is waiting for a
+	# die would leave two of them waiting and one variable to hold both.
+	if is_targeting():
 		return false
 	if not hand.holds(card.id):
 		return false
@@ -373,6 +420,8 @@ func get_card_refusal(card : Card) -> String:
 		return ""
 	if state != State.CHOOSING:
 		return "Cards are played while the dice are still on the table."
+	if is_targeting():
+		return "%s is waiting for a die." % _targeting.display_name
 	if not context.can_afford(card.energy_cost):
 		return "Costs %d⚡, and the turn has %d left." % [
 			card.energy_cost, context.available_energy()
@@ -381,59 +430,183 @@ func get_card_refusal(card : Card) -> String:
 		return card.get_refusal(self)
 	return ""
 
-## Pays for a card and plays it. The energy goes first, then the card leaves the
-## hand, then it takes effect — in that order, so a card that draws cards cannot
-## draw itself back and a refused play has already cost nothing.
+## Plays [param card], or opens the step where the player picks a die for it.
+##
+## A card that needs a target costs nothing yet — it is paid for by
+## apply_target(), and cancel_targeting() gets out for free. Returns true in
+## both cases: the tap was accepted, which is what the row asked.
 func play_card(card : Card) -> bool:
 	if not can_play_card(card):
 		return false
+	if card.needs_target():
+		_begin_targeting(card)
+		return true
+	return _spend_and_play(card, null, 0)
 
+## Pays for a card and runs it. The energy goes first, then the card leaves the
+## hand, then it takes effect — in that order, so a card that draws cards cannot
+## draw itself back and a refused play has already cost nothing.
+##
+## [param die] is the target for a card that asked for one, and null otherwise.
+func _spend_and_play(card : Card, die : Die, choice : int) -> bool:
 	context.spend_energy(card.energy_cost)
 	hand.discard(card.id)
-	_active_cards.append(card)
+	# An instant card has nothing left to answer for, so it is not kept: the
+	# active list is what the rules are built from, and a card in it that changes
+	# nothing is a card the HUD would go on claiming was in force.
+	if card.duration != Card.Duration.INSTANT:
+		_active_cards.append(card)
+
 	var faces_before := _face_snapshot()
-	card.on_played(self)
+	if die != null:
+		card.on_target(self, die, choice)
+	else:
+		card.on_played(self)
 
 	# Rebuilt rather than mutated, because the scoring cache is keyed on this
 	# object's identity — without a new one the Take button would go on offering
 	# the pre-card answer until the next roll.
 	rules = ElementRules.new(get_dice_in_play(), _active_cards)
 
-	# dice_changed first: it is what moves a restored die out of the set aside
-	# row, and the roll animation card_played asks for should play on a die that
-	# is already where it belongs.
+	# dice_changed first: it is what puts a lent die in the tray, and the roll
+	# animation card_played asks for should play on a die that already has a
+	# view to play it on.
 	dice_changed.emit()
 	card_played.emit(card, _dice_rerolled_since(faces_before))
 	_refresh_selection_score()
 	return true
 
-## What every die is showing, by index. Taken either side of on_played() so the
-## view can be told exactly which dice a card turned over.
+## What every die is showing. Taken either side of the effect so the view can be
+## told exactly which dice a card turned over.
+##
+## Keyed by die rather than by index, because Extra Die changes how many there
+## are and an index would then name the wrong one. A die that was not there
+## before counts as changed, which is right: it has a face nobody has seen.
 ##
 ## Worked out here rather than reported by the card, because a card carries no
 ## state about having been played and should not have to remember to mention
 ## this. §3.5's spells turn the whole board over; they will be seen for free.
-func _face_snapshot() -> Array[int]:
-	var faces : Array[int] = []
+func _face_snapshot() -> Dictionary:
+	var faces : Dictionary = {}
 	for die in context.pool.dice:
-		faces.append(die.get_value())
+		faces[die] = die.get_value()
 	return faces
 
-func _dice_rerolled_since(faces_before : Array[int]) -> Array[Die]:
+func _dice_rerolled_since(faces_before : Dictionary) -> Array[Die]:
 	var changed : Array[Die] = []
-	for i in context.pool.dice.size():
-		if i < faces_before.size() and context.pool.dice[i].get_value() != faces_before[i]:
-			changed.append(context.pool.dice[i])
+	for die in context.pool.dice:
+		if not faces_before.has(die) or int(faces_before[die]) != die.get_value():
+			changed.append(die)
 	return changed
+
+## Drops every card whose time is up, and rebuilds the rules if anything went.
+func _expire(duration : Card.Duration) -> void:
+	var kept : Array[Card] = []
+	for card in _active_cards:
+		if card.duration != duration:
+			kept.append(card)
+	if kept.size() == _active_cards.size():
+		return
+	_active_cards = kept
+	rules = ElementRules.new(get_dice_in_play(), _active_cards)
+
+# --- targeting -------------------------------------------------------------
+
+## Whether a card is waiting for the player to pick a die. While it is, the
+## board takes no other instruction: the three buttons are refused and so is
+## every other card, so the only ways on are a die or cancel_targeting().
+func is_targeting() -> bool:
+	return _targeting != null
+
+func get_targeting_card() -> Card:
+	return _targeting
+
+## The dice [param card] would accept right now, given whichever of its choices
+## is armed.
+##
+## Asked before the card is offered at all — see Card.can_play() — so that a
+## card can never open a targeting step with nothing in it. That is not a
+## nicety: with the buttons refused, an empty tray leaves cancel as the only
+## move, which is a card the player paid attention to for nothing.
+func get_targets_for(card : Card) -> Array[Die]:
+	var targets : Array[Die] = []
+	if card == null or not card.needs_target():
+		return targets
+	for die in get_dice_in_play():
+		if card.can_target(self, die):
+			targets.append(die)
+	return targets
+
+## Whether tapping [param die] would hand it to the waiting card.
+func can_target(die : Die) -> bool:
+	if not is_targeting() or die == null or die.is_set_aside:
+		return false
+	return _targeting.can_target(self, die)
+
+## Which of the waiting card's choices is armed, as an index into its
+## target_choices().
+func get_target_choice() -> int:
+	return _target_choice
+
+## Arms one of the waiting card's choices. What the row's +1 and -1 press.
+func set_target_choice(index : int) -> bool:
+	if not is_targeting() or index < 0 or index >= _targeting.target_choices().size():
+		return false
+	_target_choice = index
+	targeting_changed.emit(_targeting)
+	return true
+
+## Hands the waiting card its die. This is where it is paid for and played, so a
+## targeting step that never got here has cost nothing.
+func apply_target(die : Die) -> bool:
+	if not can_target(die):
+		return false
+	var card := _targeting
+	var choice := _target_choice
+	_end_targeting()
+	return _spend_and_play(card, die, choice)
+
+## Backs out. Nothing was spent, so nothing is given back.
+func cancel_targeting() -> bool:
+	if not is_targeting():
+		return false
+	_end_targeting()
+	return true
+
+## Opens the step, armed on the first choice that has a die to offer.
+##
+## Not simply the first choice: with "+1" armed on a board of six 6s, no die can
+## move and the tray would open dark. The player can still switch by hand — that
+## is what the buttons are — but they should never have to before anything is
+## tappable.
+func _begin_targeting(card : Card) -> void:
+	_targeting = card
+	_target_choice = 0
+	for index in card.target_choices().size():
+		_target_choice = index
+		if not get_targets_for(card).is_empty():
+			break
+	targeting_changed.emit(card)
+
+func _end_targeting() -> void:
+	_targeting = null
+	_target_choice = 0
+	targeting_changed.emit(null)
 
 # --- banking ---------------------------------------------------------------
 
 func can_bank() -> bool:
 	if state != State.CHOOSING or context.turn_score <= 0:
 		return false
+	if is_targeting():
+		return false
 	# An uncommitted selection is not banked. Requiring it to be committed first
 	# keeps one rule — points are only real once set aside — instead of two.
 	if not _selection.is_empty():
+		return false
+	# What Forced Reroll charges. Always liftable by doing what it says, which is
+	# why nothing else has to know it is in force.
+	if rules.forces_reroll():
 		return false
 	if context.turn_score < ruleset.minimum_bank:
 		return false
@@ -444,6 +617,10 @@ func can_bank() -> bool:
 
 ## Why banking is blocked, e.g. "Reach 500 to bank". Empty when it is not.
 func get_bank_requirement_text() -> String:
+	# First, because it outranks the others: a card the player just paid for is
+	# the reason they are looking at the button, and the fix is one press away.
+	if rules.forces_reroll():
+		return "Roll again first"
 	if context.turn_score > 0 and context.turn_score < ruleset.minimum_bank:
 		return "Reach %d to bank" % ruleset.minimum_bank
 	for modifier in ruleset.modifiers:
@@ -467,9 +644,11 @@ func bank() -> bool:
 
 ## Nothing on the table scores. The turn's points are gone, and the level may
 ## charge for it on top.
-## Shield banks the turn instead of losing it. The table still holds nothing
-## worth taking, so the turn is over either way — what the card buys is keeping
-## what was already earned.
+##
+## Farkle Shield banks the turn instead of losing it, and the level's penalty
+## goes with it — there is nothing left to charge against. The table still holds
+## nothing worth taking, so the turn is over either way; what the card buys is
+## keeping what was already earned.
 ##
 ## It deliberately does not hand the roll back. Leaving the player in CHOOSING
 ## would let them push again off dice they had already set aside, and a free
@@ -477,17 +656,30 @@ func bank() -> bool:
 ## reason can_push() refuses to roll without a commitment.
 func _farkle() -> void:
 	var lost := context.turn_score
-	if rules.blocks_farkle() and lost > 0:
+	if rules.blocks_farkle():
 		var saved := context.bank_turn_score()
+		_spend_farkle_shield()
 		_set_state(State.FARKLED)
 		farkled.emit(0)
-		banked.emit(saved)
+		if saved > 0:
+			banked.emit(saved)
 		score_changed.emit()
 		return
 	context.lose_turn_score(rules.farkle_penalty(ruleset.farkle_penalty))
 	_set_state(State.FARKLED)
 	farkled.emit(lost)
 	score_changed.emit()
+
+## Drops the shield that just did its job. The turn ends on a Farkle either way,
+## so nothing can play a second card off the back of this — but get_active_cards()
+## is read by the HUD and should not go on claiming a shield already spent.
+func _spend_farkle_shield() -> void:
+	var kept : Array[Card] = []
+	for card in _active_cards:
+		if not card.blocks_farkle():
+			kept.append(card)
+	_active_cards = kept
+	rules = ElementRules.new(get_dice_in_play(), _active_cards)
 
 ## Acknowledges a Farkle and moves on. A separate step rather than an automatic
 ## one because losing 2000 points deserves a beat to look at, and because a turn

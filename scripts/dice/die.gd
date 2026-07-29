@@ -34,6 +34,34 @@ func roll(rng : RngService) -> DieFace:
 	current_face = type.roll(rng)
 	return current_face
 
+## Whether this die's type has a face showing [param value]. What the value
+## cards ask before they offer a die: nothing may turn a d6 into a 7, and asking
+## the type rather than assuming 1-6 is what keeps that true of the D8s the
+## design document expands into.
+func can_show(value : int) -> bool:
+	if type == null:
+		return false
+	for face in type.faces:
+		if face.value == value:
+			return true
+	return false
+
+## Turns the die to [param value] without rolling it. Value Shift and Value
+## Converter are the only things that do this.
+##
+## Takes the type's own face where there is one, so the die keeps the label and
+## the skin its type authored and stays indistinguishable from a die that rolled
+## there. Only a value the type does not hold mints a face, which can_show()
+## exists to stop happening.
+func set_value(value : int) -> DieFace:
+	if type != null:
+		for face in type.faces:
+			if face.value == value:
+				current_face = face
+				return current_face
+	current_face = DieFace.create(StringName("pip_%d" % value), value, str(value))
+	return current_face
+
 ## The pips showing. Zero for a die that has not been rolled yet.
 func get_value() -> int:
 	return current_face.value if current_face != null else 0

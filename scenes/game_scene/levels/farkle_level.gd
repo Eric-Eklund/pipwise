@@ -69,6 +69,8 @@ func _ready() -> void:
 	_dice_tray.die_pressed.connect(_on_die_pressed)
 	_card_row.card_pressed.connect(_on_card_pressed)
 	_card_row.card_held.connect(_on_card_held)
+	_card_row.target_choice_picked.connect(_on_target_choice_picked)
+	_card_row.target_cancelled.connect(_on_target_cancelled)
 	_score_hud.guide_requested.connect(_on_guide_requested)
 	# The banner parks itself above the tray, and the tray moves whenever the
 	# set aside row appears or the window changes shape.
@@ -111,6 +113,7 @@ func start_round(round_ruleset : Ruleset) -> void:
 	game.farkled.connect(_on_farkled)
 	game.hot_dice.connect(_on_hot_dice)
 	game.card_played.connect(_on_card_played)
+	game.targeting_changed.connect(_on_targeting_changed)
 	game.turn_started.connect(_on_turn_started)
 	game.level_won.connect(_on_level_won)
 	game.level_lost.connect(_on_level_lost)
@@ -162,8 +165,28 @@ func _on_loadout_chosen(elements : Array[StringName]) -> void:
 
 # --- input ------------------------------------------------------------------
 
+## A tap on a die means one of two things, and which one is the engine's to say.
+## While a card is waiting, every tap is an answer to it — see
+## FarkleGame.is_targeting().
 func _on_die_pressed(die : Die) -> void:
+	if game.is_targeting():
+		_clear_notice()
+		game.apply_target(die)
+		return
 	game.toggle_selection(die)
+
+func _on_target_choice_picked(index : int) -> void:
+	game.set_target_choice(index)
+
+func _on_target_cancelled() -> void:
+	_clear_notice()
+	game.cancel_targeting()
+
+## The board changes shape when a card starts or stops waiting: the row swaps
+## the hand for a prompt and the tray relights itself around what the card will
+## accept.
+func _on_targeting_changed(_card : Card) -> void:
+	_refresh()
 
 func _on_take_button_pressed() -> void:
 	_clear_notice()
@@ -331,7 +354,14 @@ func _farkle_button_text() -> String:
 
 ## Taking is offered when something is marked, and also when nothing is marked
 ## but something could be — the button takes everything in that case.
+##
+## Never while a card is waiting for a die. can_commit_selection() already
+## refuses there, but the second branch does not ask it: the button would come
+## up bright, mark the best selection on the way through, and then be turned
+## down by the engine — leaving dice marked that the player did not mark.
 func _can_take() -> bool:
+	if game.is_targeting():
+		return false
 	if game.can_commit_selection():
 		return true
 	return game.get_selection().is_empty() and not game.get_scorable_dice().is_empty()
@@ -367,10 +397,23 @@ func _bank_text() -> String:
 ## right now, which changes through a turn — so it is rebuilt rather than set
 ## once in the scene.
 func _refresh_hint() -> void:
+	# A card waiting for a die outranks everything, including a notice: it is the
+	# only moment in the game where a tap does something other than what the
+	# player has learned it does.
+	if game.is_targeting():
+		var card := game.get_targeting_card()
+		_show_hint("%s — %s" % [card.get_label(), card.target_prompt()], card.get_color())
+		return
 	if not _notice.is_empty():
 		_show_hint(_notice, _notice_color)
 		return
 	if game.state != FarkleGame.State.CHOOSING:
+		return
+	# Forced Reroll took the bank away, and the only line on screen that says so
+	# is the Bank button's own label — which the player is not looking at, since
+	# they just pressed a card.
+	if game.rules.forces_reroll():
+		_show_hint("Forced Reroll — you have to roll before you can bank", COMBO_HINT_COLOR)
 		return
 	# Points on the table outrank everything else, because the decision they
 	# create is the only one that matters. "Nothing scores" is true of the dice

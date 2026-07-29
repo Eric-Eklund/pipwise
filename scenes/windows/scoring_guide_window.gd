@@ -78,15 +78,15 @@ func _add_elements(game : FarkleGame) -> void:
 
 ## Only the cards actually in hand, and only when there are any.
 ##
-## The same rule the elements follow: a guide that explains all ten cards while
-## the player holds three of them is a guide nobody finishes. Endless has no hand
-## at all and gets no section.
+## The same rule the elements follow: a guide that explains every card while the
+## player holds three of them is a guide nobody finishes. Endless has no hand at
+## all and gets no section.
 func _add_cards(game : FarkleGame) -> void:
 	var cards := game.get_hand()
 	if cards.is_empty():
 		return
 	add_line("Your cards", HEADING_COLOR)
-	add_line("Played from the row under the dice, paid for with the energy your dice are showing. They last the turn.", MUTED_COLOR)
+	add_line("Played from the row under the dice, paid for with the energy your dice are showing. Most take effect at once and are gone; two of them ask you to tap a die.", MUTED_COLOR)
 	for card in cards:
 		add_row(card.get_label(), "%d⚡" % card.energy_cost, card.get_color())
 		add_line("  %s" % card.description, MUTED_COLOR)

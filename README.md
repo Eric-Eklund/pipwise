@@ -95,26 +95,31 @@ and they go when the run does.
 
 | | | |
 | --- | --- | --- |
-| Second Wind | A die you set aside comes back, rolled again | 3⚡ |
-| Shield | A Farkle banks the turn instead of taking it | 5⚡ |
-| Draw 2 | Two more cards | 3⚡ |
-| Discard Swap | Throw the hand away and draw it again | 4⚡ |
-| 🔥❄️⚡💎 Potions | That element pays double its bonus this turn | 5-8⚡ |
-| 🌿 Earth Restore | Nature hands back one more die | 5⚡ |
-| ☠️ Shadow Veil | A Farkle *pays* you this turn | 6⚡ |
+| 🔒 Lock All | Sets aside every die worth taking, and banks their points into the turn | 2⚡ |
+| 🎲 Extra Die | Rolls one more die onto the table for the rest of the turn | 3⚡ |
+| ✨ Score Boost | Matched sets pay +50% until you roll again | 4⚡ |
+| 🔁 Value Converter | Turns a die that scores nothing into a 1 or a 5 | 4⚡ |
+| ↕ Value Shift | Moves one die a single pip, up or down | 5⚡ |
+| 🎯 Forced Reroll | Roll again with nothing set aside — but you cannot bank until you do | 5⚡ |
+| 🛡 Farkle Shield | The next Farkle costs you nothing | 6⚡ |
 
 The budget is taken once, at the top of the turn, and does not move afterwards —
 a wallet that shrank when you rolled badly would be a wallet you could not plan
 against.
 
-A potion needs its element on the table. Draw Frost Shield on a level with no ❄️
-Ice and it greys out and waits for the level that has some, rather than letting
-you spend six energy on doubling nothing. **Hold a card down** to see what it
-does, what its element is for, and why it will not go.
+Value Shift and Value Converter ask for a die. Tap the card and the row turns
+into a prompt: the dice that card can use light up, everything else goes dark,
+and the three buttons wait. Tapping a die spends the card; **Cancel** costs
+nothing, because a targeted card is not paid for until it has its die.
+**Hold a card down** to see what it does, how long it lasts, and why it will not
+go.
 
-Shield is the interesting one. It does not hand the roll back; a dead board is
-still a dead board. What it buys is keeping the points you had already earned,
-which is the difference between a push you can afford and one you cannot.
+Two of them are worth reading twice. Farkle Shield does not hand the roll back —
+a dead board is still a dead board. What it buys is keeping the points you had
+already earned, which is the difference between a push you can afford and one you
+cannot. Forced Reroll is the opposite trade: it buys the one thing Farkle never
+gives away, a roll you did not have to commit anything for, and charges for it by
+taking the bank away until you have made it.
 
 None of this is required. The level targets were measured against a player
 holding no cards at all, so the hand is upside and never a tax.
@@ -203,7 +208,8 @@ The seams that keep it open:
   bigger.
 - `Card` — one thing energy can buy, with hooks that all do nothing by default.
   A new card is a subclass, never a new branch in the turn loop, and cards reach
-  the scorer only through `ElementRules`.
+  the scorer only through `ElementRules`. Its `Duration` is what makes "one
+  round" mean something on a board where a turn is many rolls.
 - `Objective` — what a level asks for. Two questions now rather than one, because
   a level is many turns: `is_met()` after a bank, `is_failed()` when turns run out.
 - `LevelModifier` — a boss twist, configured into the level rather than consulted

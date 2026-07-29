@@ -29,25 +29,60 @@ var _die_views : Array[DieView] = []
 func _ready() -> void:
 	resized.connect(_update_die_sizes)
 
-## Builds one view per die. Call once per level.
+## Builds one view per die, from nothing. Call once per round.
 func show_dice(dice : Array[Die]) -> void:
 	for view in _die_views:
-		# Unparented before it is freed: queue_free() alone leaves it in the row
-		# until the end of the frame, and a round that rebuilds its dice — endless
-		# does, every round — would spend that frame asking for twice the width it
-		# has. See _update_die_sizes for what a row wider than the screen costs.
-		view.get_parent().remove_child(view)
-		view.queue_free()
+		_discard(view)
 	_die_views.clear()
+	_sync_dice(dice)
+
+## Brings the views into line with the dice the game is holding, and returns
+## whether anything moved.
+##
+## Called on every refresh rather than only from show_dice(), because Extra Die
+## puts a die on the table mid-turn and the turn boundary takes it away again.
+## The views that were already there are kept: rebuilding all of them to add one
+## would restart six roll animations, and these are supposed to look like the
+## same physical objects all level.
+func _sync_dice(dice : Array[Die]) -> bool:
 	if die_view_scene == null:
-		return
+		return false
+	var changed := false
+
+	var wanted : Dictionary = {}
 	for die in dice:
+		wanted[die] = true
+	for index in range(_die_views.size() - 1, -1, -1):
+		if wanted.has(_die_views[index].die):
+			continue
+		_discard(_die_views[index])
+		_die_views.remove_at(index)
+		changed = true
+
+	var drawn : Dictionary = {}
+	for view in _die_views:
+		drawn[view.die] = true
+	for die in dice:
+		if drawn.has(die):
+			continue
 		var view := die_view_scene.instantiate() as DieView
 		_in_play_row.add_child(view)
 		view.set_die(die)
 		view.die_pressed.connect(_on_die_pressed)
 		_die_views.append(view)
-	_update_die_sizes()
+		changed = true
+
+	if changed:
+		_update_die_sizes()
+	return changed
+
+## Unparented before it is freed: queue_free() alone leaves the view in the row
+## until the end of the frame, so a row that shed a die would spend that frame
+## asking for the width of both. See _update_die_sizes for what a row wider than
+## the screen costs.
+func _discard(view : DieView) -> void:
+	view.get_parent().remove_child(view)
+	view.queue_free()
 
 ## Replays the roll animation. Dice already set aside sit it out on their own.
 func play_roll() -> void:
@@ -72,7 +107,7 @@ func play_take(dice : Array[Die]) -> void:
 
 ## Re-evaluates which dice are tappable, and moves any that changed rows.
 func refresh_state(game : FarkleGame) -> void:
-	var moved := false
+	var moved := _sync_dice(game.get_dice())
 	for view in _die_views:
 		view.refresh_state(game)
 		var wanted : HBoxContainer = _set_aside_row if view.die.is_set_aside else _in_play_row

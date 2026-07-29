@@ -155,7 +155,18 @@ These exist so that new content is data rather than code. Use them.
 - **`Card`** — one thing energy can buy. A `Resource` with virtual hooks that all
   do nothing by default, exactly like `LevelModifier`, so a new card is a new
   subclass and never a new branch in the turn loop. `CardLibrary` is the
-  catalogue; the hand is ids in `RunState`, the way the loadout already is.
+  catalogue; the hand is ids in `RunState`, the way the loadout already is. Its
+  `Duration` says when it wears off — `ROLL` at the next roll, `TURN` at the turn
+  boundary, `INSTANT` never entering the active list at all — because a turn here
+  is many rolls and §3's "one round" is two different cards.
+- **A card that asks for a die is paid for by the die, not by the tap.**
+  `play_card()` opens a targeting step, `apply_target()` is what spends the
+  energy, and `cancel_targeting()` costs nothing because nothing was taken.
+  Refunding instead would mean undoing the energy, the discard and the effect in
+  three places. While one is waiting the three buttons and every other card are
+  refused, so `Card.can_play()` refuses a card no die on the table would satisfy
+  — a targeting step with nothing in it is a board whose only legal move is to
+  undo the last one.
 
 ## What is deliberately not built
 
@@ -168,11 +179,19 @@ Not built yet, in rough priority order: the rest of the cards (§3.4-3.6 —
 artifacts, spells and relics), the shop and currencies (§6), per-die levelling
 (§1.4), dice evolution and D8+ (§1.2), drop tables (§5.3).
 
-**Before adding a card, read deviation 8 of `docs/DESIGN.md`.** Seven of §3's
-cards do nothing in this build — they are written against rerolls that cost
-something, a currency, and a death that takes items, none of which exist here.
-Two more duplicate a rule the dice already have. Transcribing the list is how you
-ship dead cards.
+**Before adding a card, read deviation 8 of `docs/DESIGN.md`.** The ten cards
+transcribed out of §3 were built and then removed: six were "your element pays
+double", which is a number the player cannot see move on a board that has to be
+carrying the right element first — and §5 deals no elements until level 3. What
+ships is a base set of seven that needs no element on the table. Several of §3's
+remainder are written against rerolls that cost something, a currency, and a
+death that takes items, none of which exist here. Transcribing the list is how
+you ship dead cards.
+
+**A card must never be the worse of two buttons.** Lock All commits the *best*
+selection rather than every scoring die, because since the mega combos those
+differ — and a card that took a scoring die the Take button beside it would have
+left behind is a card the player learns not to press.
 
 Two known constraints worth keeping in mind:
 

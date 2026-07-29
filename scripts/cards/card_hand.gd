@@ -106,10 +106,3 @@ func discard(id : StringName) -> bool:
 		return false
 	hand.remove_at(index)
 	return true
-
-## Throws the whole hand away and draws the same number back. Discard Swap's
-## effect, and the reason discarding and drawing are separate functions.
-func swap_all() -> Array[StringName]:
-	var count := hand.size()
-	hand.clear()
-	return draw(count)

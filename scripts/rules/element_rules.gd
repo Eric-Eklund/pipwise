@@ -56,12 +56,14 @@ const SHADOW_TRIO_FARKLE_REWARD := 50
 ## How many dice of each element are in play, keyed by element.
 var counts : Dictionary = {}
 
-## The cards played this turn and still in force.
+## The cards played and still in force. Rebuilt with these rules whenever one is
+## played or wears off, so "still in force" never has to be asked twice.
 ##
 ## They live here rather than in the scorer for the same reason the elements do:
 ## the scorer asks what a selection is worth and must not be the thing that
-## decides. A card changes what an element pays, so it is folded in beside the
-## element it changes and FarkleScorer never learns cards exist.
+## decides. A card that changes what a shape pays is folded in beside the
+## element rules that change the same thing, and FarkleScorer never learns cards
+## exist.
 var active_cards : Array[Card] = []
 
 func _init(dice_in_play : Array[Die] = [], played_cards : Array[Card] = []) -> void:
@@ -111,17 +113,7 @@ func pairs_score() -> bool:
 ## The percentage bonus one die adds to its own share of its part, as a
 ## fraction. Elements that do not touch the score at all — Nature and Shadow —
 ## return zero here and are answered by the two functions below instead.
-## A potion multiplies its own element's share and nothing else, so playing Fire
-## Brew on a board of Ice dice is a wasted card rather than a quiet global buff.
 func die_bonus_fraction(die : Die, part : ScorePart) -> float:
-	var fraction := _base_die_bonus_fraction(die, part)
-	if fraction == 0.0:
-		return 0.0
-	for card in active_cards:
-		fraction *= card.element_bonus_multiplier(die.element)
-	return fraction
-
-func _base_die_bonus_fraction(die : Die, part : ScorePart) -> float:
 	if die == null or part == null:
 		return 0.0
 	match die.element:
@@ -142,7 +134,13 @@ func _base_die_bonus_fraction(die : Die, part : ScorePart) -> float:
 		_:
 			return 0.0
 
-## Flat points a trio adds to one part, on top of its base.
+## Flat points a trio adds to one part, on top of its base — and whatever a card
+## is adding to it.
+##
+## A card's share is a fraction of the part's own base, so Score Boost pays more
+## on four 6s than on three 2s without knowing either number. It lands here
+## rather than in the scorer for the same reason the elements do: the scorer
+## asks what a selection is worth and must not be the thing that decides.
 func part_bonus_points(part : ScorePart) -> int:
 	if part == null:
 		return 0
@@ -151,6 +149,8 @@ func part_bonus_points(part : ScorePart) -> int:
 		bonus += FIRE_TRIO_SIX_SET_BONUS
 	if has_trio(Element.CRYSTAL) and part.kind == ScorePart.Kind.STRAIGHT:
 		bonus += CRYSTAL_TRIO_STRAIGHT_BONUS
+	for card in active_cards:
+		bonus += int(round(float(part.base_points) * card.part_bonus_fraction(part)))
 	return bonus
 
 ## Section 2.3's mega combo among the dice that scored, or MegaCombo.NONE.
@@ -223,35 +223,38 @@ func dice_restored(scored_dice : Array[Die]) -> int:
 			has_nature = true
 	if not has_nature or pip_sum <= 0 or pip_sum % 2 != 0:
 		return 0
-	var restored := 2 if has_trio(Element.NATURE) else 1
-	# Earth Restore adds to the trio rather than replacing it, so three Nature
-	# dice and the card hand back four.
-	for card in active_cards:
-		restored += card.dice_restored_bonus()
-	return restored
+	return 2 if has_trio(Element.NATURE) else 1
 
 ## What a Farkle actually costs, given a penalty the level wanted to charge.
 ## Shadow softens it, and three Shadow dice turn it into a reward — which is the
 ## whole point of the element: it makes pushing your luck cheap enough to be
 ## reckless with.
+##
+## Nothing here answers for Farkle Shield. A shielded bust never reaches this:
+## FarkleGame banks the turn and returns before there is anything to charge a
+## penalty against — see blocks_farkle() below.
 func farkle_penalty(base_penalty : int) -> int:
-	# Shadow Veil buys the trio's effect for one turn. Checked first, because a
-	# card the player paid for should not be quietly outranked by the dice.
-	for card in active_cards:
-		if card.farkle_pays():
-			return -SHADOW_TRIO_FARKLE_REWARD
 	if has_trio(Element.SHADOW):
 		return -SHADOW_TRIO_FARKLE_REWARD
 	if count_of(Element.SHADOW) > 0:
 		return int(round(base_penalty * 0.5))
 	return base_penalty
 
-## Whether a card is holding the turn open through a roll that scored nothing.
-## Shield's whole effect, asked by FarkleGame rather than by the scorer — a bust
-## is a turn event, not a scoring one.
+## Whether a card is holding the turn's points through a roll that scored
+## nothing. Farkle Shield's whole effect, asked by FarkleGame rather than by the
+## scorer — a bust is a turn event, not a scoring one.
 func blocks_farkle() -> bool:
 	for card in active_cards:
 		if card.blocks_farkle():
+			return true
+	return false
+
+## Whether a card is making the player roll: no banking, and the push is legal
+## with nothing set aside. Forced Reroll's whole effect, and the one card
+## question that is about the buttons rather than the points.
+func forces_reroll() -> bool:
+	for card in active_cards:
+		if card.forces_reroll():
 			return true
 	return false
 
