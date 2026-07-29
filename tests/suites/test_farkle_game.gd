@@ -401,6 +401,49 @@ func test_nature_hands_a_die_back_after_committing() -> void:
 	game.commit_selection()
 	assert_eq(game.get_dice_in_play().size(), 5, "four would be left without it")
 
+## And it comes back rolled.
+##
+## Handed back unrolled it arrived on the face it was set aside with — and it was
+## set aside because that face scored. So the same dice could be taken again for
+## the same points, and two Nature 5s made that a loop with no exit: ten pips is
+## even, which restores them both, which offers the identical selection again.
+## The playthrough probe found a turn worth 454,500 that way, with Earth Restore
+## handing back one more each time round.
+##
+## Asserted against the type's own faces rather than a value: force_faces mints a
+## face no DieType holds, and only a real roll can replace it with one that does.
+func test_a_die_nature_hands_back_is_rolled() -> void:
+	var ruleset := make_ruleset(100000, 5)
+	ruleset.bag_definition = StarterDice.create_element_bag(Element.NATURE, 2)
+	var game := make_game(ruleset)
+	game.start()
+	force_faces(game, [1, 5, 2, 3, 4, 4])
+	var before := game.get_dice_in_play()
+	game.select_all_scoring()
+	game.commit_selection()
+
+	var came_back : Die = null
+	for die in game.get_dice_in_play():
+		if die in before and not die.is_set_aside and die.current_face in die.type.faces:
+			came_back = die
+	assert_true(came_back != null, "the die Nature paid was rolled again")
+
+## The loop the roll closes, from the other side: whatever comes back must not be
+## the selection that just paid, still sitting there ready to pay again.
+func test_nature_does_not_hand_back_a_die_still_scoring_the_same_take() -> void:
+	var ruleset := make_ruleset(100000, 5)
+	ruleset.bag_definition = StarterDice.create_element_bag(Element.NATURE, 2)
+	var game := make_game(ruleset)
+	game.start()
+	force_faces(game, [1, 5, 2, 3, 4, 4])
+	game.select_all_scoring()
+	var paid := game.selection_score.total()
+	game.commit_selection()
+
+	game.select_all_scoring()
+	var again := game.selection_score.total() if game.selection_score != null else 0
+	assert_true(again < paid, "the same take is not on the table a second time")
+
 # --- mega combos and the two takeable questions ----------------------------
 
 ## A bag that can produce the Chaos board: two Crystal, three Fire, one

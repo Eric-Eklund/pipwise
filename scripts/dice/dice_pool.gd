@@ -113,8 +113,9 @@ func set_aside_all(selection : Array[Die]) -> int:
 ## Newest first because those are the dice the player just chose, so the ones
 ## coming back are the ones they are still looking at.
 ##
-## The dice rather than a count, because a caller may want to do something to
-## them: Second Wind rerolls what it buys back, and Nature deliberately does not.
+## The dice rather than a count, because the caller has to do something to them:
+## both Nature and Second Wind roll what they hand back, and a die returned on
+## the face it was set aside with is a die still scoring what it already paid.
 func restore(count : int) -> Array[Die]:
 	var restored : Array[Die] = []
 	if count <= 0:

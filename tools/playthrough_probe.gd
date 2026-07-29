@@ -42,6 +42,12 @@ const SEEDS : Array[int] = [1, 2, 3, 7, 11]
 ## A level is five turns of a handful of rolls. Anything approaching this is a
 ## loop that is not going to end on its own.
 const MAX_STEPS := 3000
+## Windows the level may stack over the board before a round starts. Two today —
+## the loadout and the walkthrough behind it — with room for a third.
+const MAX_OVERLAYS := 4
+## Fixes the run's cards. Any value; what matters is that it is the same one on
+## every machine, so a card-dependent failure reproduces off a git checkout.
+const DECK_SEED := 4242
 
 var _failures : Array[String] = []
 ## The width every size in the project is drawn against. Read from the project
@@ -65,6 +71,7 @@ func _ready() -> void:
 		int(ProjectSettings.get_setting("display/window/size/viewport_height", 960))
 	)
 	window.size = window.content_scale_size
+	_reset_save()
 	await get_tree().process_frame
 
 	await _check_card_hold()
@@ -100,7 +107,7 @@ func _check_card_hold() -> void:
 	level.rng_seed = 3
 	add_child(level)
 	await get_tree().process_frame
-	_dismiss_loadout(level)
+	await _dismiss_overlays(level, "card hold")
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -172,7 +179,7 @@ func _play_scene(path : String, label : String) -> void:
 		level.rng_seed = seed_value
 		add_child(level)
 		await get_tree().process_frame
-		_dismiss_loadout(level)
+		await _dismiss_overlays(level, "%s seed %d" % [label, seed_value])
 		await get_tree().process_frame
 
 		var outcome := await _drive(level)
@@ -185,23 +192,84 @@ func _play_scene(path : String, label : String) -> void:
 
 	print("  %-10s %d/%d cleared" % [label, wins, SEEDS.size()])
 
-## Presses Start on the loadout screen, which levels 1, 5 and 10 open before the
-## round begins.
+## Puts the save back to what a phone with the game freshly installed holds.
 ##
-## Goes through the real button rather than calling the level's handler, because
-## the thing worth catching here is a loadout screen that cannot be dismissed —
-## if the preselected dice ever failed to add up to six, Start would be disabled
-## and the player would be stuck on a screen with no way out. That is exactly the
-## kind of dead end this probe exists for, and _drive() would only report "no
-## game" without saying why.
-func _dismiss_loadout(level : FarkleLevel) -> void:
-	var window := level.find_child("LoadoutWindow", true, false)
-	if window == null:
+## GameState is a resource that persists to disk, and the levels write to it as
+## they play: the hand after every card, the collection after every win, and
+## whether the walkthrough has been read. So the second run of this probe played
+## level 1 with the hand the first one left behind, and CI — a fresh checkout
+## with no save file at all — played something different again. A probe whose
+## answer depends on what ran before it cannot be used to decide anything, and
+## the two disagreed for an afternoon before anyone noticed they were even
+## different questions.
+func _reset_save() -> void:
+	var state := GameState.get_or_create_state()
+	if state == null:
 		return
-	var start : Button = window.find_child("CloseButton", true, false)
-	if start == null or start.disabled:
-		return
-	start.pressed.emit()
+	state.run = _seeded_run()
+	state.loadout = []
+	state.dice_collection = DiceCollection.create_starting()
+	# The walkthrough included. It is the one thing here that puts a window over
+	# the board, so leaving it read would hide the case a fresh install hits.
+	state.level_states = {}
+	GlobalState.save()
+
+## A run whose cards are the same ones every time.
+##
+## RunState.create() seeds itself from an unseeded RngService, on purpose — two
+## attempts at the campaign should not deal the same hand. But it means every
+## execution of this probe played with different cards, so a failure that needed
+## a particular card to be in hand at a particular level appeared once and then
+## could not be reproduced. That is how the Nature loop hid: it wanted Earth
+## Restore still unspent by level 7.
+##
+## Built through the same public calls create() makes rather than by changing its
+## signature, which a test in test_run_state.gd pins for an unrelated and better
+## reason — a run that can be handed a starting point is a run that can be
+## resumed.
+func _seeded_run() -> RunState:
+	var rng := RngService.new(DECK_SEED)
+	var run := RunState.create()
+	run.deck_seed = DECK_SEED
+	run.store_hand(CardHand.create(rng))
+	return run
+
+## Closes whatever the level put over the board before the round starts: the
+## loadout screen on levels 1, 5 and 10, and the walkthrough on level 1 behind
+## it. Both are GameOverlays with one close button.
+##
+## Goes through the real button rather than calling close(), because a window
+## that cannot be dismissed is exactly the dead end this probe exists for — if
+## the preselected dice ever failed to add up to six, Start would be disabled and
+## the player would be stuck on a screen with no way out, and _drive() would only
+## report "no game" without saying why.
+##
+## In a loop because they stack: dismissing the loadout is what opens the
+## walkthrough behind it. Leaving one up is not cosmetic here — the probe taps
+## the hand at real coordinates, and a full-screen overlay eats the tap. That is
+## how this was found: on a fresh save the walkthrough covered the board, the
+## tap landed on it, and the probe correctly reported a card nobody could reach.
+func _dismiss_overlays(level : FarkleLevel, label : String) -> void:
+	for _pass in MAX_OVERLAYS:
+		var window := _open_overlay(level)
+		if window == null:
+			return
+		var close : Button = window.find_child("CloseButton", true, false)
+		if close == null:
+			_failures.append("%s: %s has no way out" % [label, window.name])
+			return
+		if close.disabled:
+			_failures.append("%s: %s cannot be closed" % [label, window.name])
+			return
+		close.pressed.emit()
+		await get_tree().process_frame
+	_failures.append("%s: windows kept opening over the board" % label)
+
+func _open_overlay(level : FarkleLevel) -> Control:
+	for child in level.get_children():
+		if child is GameOverlay and (child as Control).visible:
+			return child as Control
+	return null
 
 ## The bot, pressing buttons instead of calling the engine. Deliberately greedy
 ## and dumb — it takes whatever is offered, plays whatever it can afford and
@@ -337,6 +405,13 @@ func _tap(at : Vector2) -> void:
 func _check_energy(level : FarkleLevel) -> String:
 	var label : Label = level.find_child("EnergyLabel", true, false)
 	if label == null or not label.is_visible_in_tree():
+		return ""
+	# Only while the level is still being played. A won or lost level has
+	# advanced its turn counter past the end without beginning a turn, so no
+	# budget was ever taken for the turn the context now names — and the row is
+	# behind the outcome window by then anyway, on a board nobody will touch.
+	if level.game.state != FarkleGame.State.CHOOSING \
+			and level.game.state != FarkleGame.State.FARKLED:
 		return ""
 	var context := level.game.context
 	var numbers := _energy_text.search(label.text)

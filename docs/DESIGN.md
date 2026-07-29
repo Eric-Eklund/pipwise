@@ -424,7 +424,7 @@ identity. The other four are the document's own wording.
 | 🔥 Fire | Scored 6s pay +50% | exact |
 | ❄️ Ice | Dice in a matched set pay +100% | **reinterpreted** — "pairs +100%" has nothing to multiply, since a bare pair scores nothing |
 | ⚡ Lightning | Scored 4-6 pay double | exact |
-| 🌿 Nature | An even pip total returns a die | exact, but see below on *which* sum |
+| 🌿 Nature | An even pip total returns a die, **rolled again** | see below on *which* sum, and on the roll |
 | ☠️ Shadow | Halves the Farkle penalty | exact |
 | 💎 Crystal | Scored 1s pay triple | exact |
 
@@ -449,6 +449,17 @@ always, and Nature would quietly mean "a free die, every single turn".
 The build reads the **pips on the scored dice**. That is a real coin flip, it is
 the number the player is looking at, and it matches the word *sum* better than a
 multiplied, bonused, rounded score does.
+
+**And the die it returns is rolled.** The document does not say, and handing it
+back on the face it was set aside with looked like the smaller change. It is a
+scoring loop: the die was set aside *because* that face scored, so it comes back
+still scoring, and the same take is available again. Two Nature 5s close the
+circle — ten pips is even, which returns them, which offers the identical
+selection — and Earth Restore hands back one more each time round. The
+playthrough probe found a turn worth 454,500 and was still counting when it hit
+its step limit. Rolling makes a returned die what "+1 die" has to mean for it to
+be a gamble rather than a rebate: it decides the *next* selection, not this one.
+Second Wind gives the same answer to the same question (deviation 8).
 
 ### 5. The rainbow bag is feast-or-famine, not strong — **resolved**
 

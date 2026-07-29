@@ -289,7 +289,7 @@ func commit_selection() -> bool:
 	took.emit(score, taken)
 
 	if score.dice_restored > 0:
-		context.pool.restore(score.dice_restored)
+		_return_to_table(context.pool.restore(score.dice_restored))
 
 	if context.pool.is_exhausted():
 		context.pool.reset_for_hot_dice()
@@ -303,6 +303,26 @@ func commit_selection() -> bool:
 	score_changed.emit()
 	_refresh_selection_score()
 	return true
+
+## Rolls the dice Nature just handed back.
+##
+## Without this they arrive on the face they were set aside with — and they were
+## set aside because that face scored, so they are still scoring, and the player
+## can take the same dice again for the same points. That is not a rounding
+## error: two Nature 5s sum to ten pips, which is even, which restores them both,
+## which makes the identical selection available again. The playthrough probe
+## found a turn worth 454,500 doing it, and it would have been worth more if the
+## step limit had been higher.
+##
+## Rolling is the same answer Second Wind gives to the same question, and it is
+## what "you get a die back" has to mean for the die to be a gamble rather than a
+## rebate. The pips it restores on decide the *next* selection, not this one.
+##
+## Deliberately not a rule about scoring the same die twice. A die that comes
+## back and rolls a 1 may be taken again, and should be — it is a new roll.
+func _return_to_table(dice : Array[Die]) -> void:
+	for die in dice:
+		die.roll(_rng)
 
 # --- cards -----------------------------------------------------------------
 
