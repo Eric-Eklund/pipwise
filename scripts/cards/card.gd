@@ -52,7 +52,7 @@ enum Rarity {
 # --- playing ---------------------------------------------------------------
 
 ## Whether this card can be played right now, energy aside. Overridden by cards
-## that need something on the board — Extra Die has nothing to give back when
+## that need something on the board — Second Wind has nothing to give back when
 ## every die is already in play.
 ##
 ## Energy is checked by FarkleGame, not here, so a card never has to remember

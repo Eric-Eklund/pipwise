@@ -25,6 +25,10 @@ func _ready() -> void:
 	add_theme_constant_override(&"separation", 4)
 
 	_energy_label = Label.new()
+	# Named so the playthrough probe can read the number the player reads. The
+	# budget is set after the roll that refreshes this row, so a stale figure
+	# here is invisible to every test that talks to the engine instead.
+	_energy_label.name = "EnergyLabel"
 	_energy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_energy_label.add_theme_font_size_override(&"font_size", 13)
 	add_child(_energy_label)

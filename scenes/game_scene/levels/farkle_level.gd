@@ -93,6 +93,12 @@ func start_round(round_ruleset : Ruleset) -> void:
 		game.hand = GameState.get_run().build_hand()
 
 	_score_hud.bind_game(game)
+	# The turn's budget is taken *after* the opening roll — before it there are
+	# no faces to count — so every refresh that roll triggers still reads the
+	# previous turn's number, and from turn 2 on the row showed a budget the
+	# player no longer had. This is the only signal that fires once it is
+	# current, and nothing was listening to it.
+	game.context.energy_changed.connect(_refresh_energy)
 	game.dice_changed.connect(_refresh)
 	game.selection_changed.connect(_refresh)
 	game.score_changed.connect(_refresh)
@@ -209,11 +215,18 @@ func _on_banked(points : int) -> void:
 ## The hand is written back on every play rather than at the end of the level. A
 ## level can be quit from, and a card the player spent that came back because
 ## they closed the app is worse than no card system at all.
-func _on_card_played(card : Card) -> void:
+func _on_card_played(card : Card, rerolled : Array[Die]) -> void:
 	_set_notice("%s — %s" % [card.get_label(), card.description], card.get_color())
 	_banner.show_card(card)
 	_effects.flash(card.get_color(), 0.12)
-	_sounds.play_take(0, 1.0, 0)
+	# A card that turned dice over has to look like it did. DieView.refresh_state
+	# never redraws a face — only a roll does — so without this the die sits
+	# there showing what it showed before while the scorer reads the new face.
+	if rerolled.is_empty():
+		_sounds.play_take(0, 1.0, 0)
+	else:
+		_dice_tray.play_roll_for(rerolled)
+		_sounds.play_roll()
 	_save_hand()
 
 func _save_hand() -> void:
@@ -275,6 +288,15 @@ func _refresh() -> void:
 	_place_banner()
 	_refresh_buttons()
 	_refresh_hint()
+
+## The hand alone, for when the budget moved and nothing else did.
+##
+## Not _refresh(). This fires from inside a roll — the dice have new faces but
+## the element rules and the selection are still the last roll's — and a full
+## refresh there would recompute a board that is halfway rebuilt, for a number
+## only this row draws.
+func _refresh_energy() -> void:
+	_card_row.refresh(game)
 
 ## Keeps the banner sitting just above the dice. The tray is inside a container
 ## and the banner is not, so the only thing that can relate them is this.

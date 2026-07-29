@@ -93,14 +93,24 @@ func test_restoring_brings_dice_back_newest_first() -> void:
 	assert_true(_pool.dice[0].is_set_aside, "the older commitment stays")
 	assert_false(_pool.dice[3].is_set_aside, "the newest one comes back")
 
+## The dice rather than a count, so a caller can do something to what it bought
+## back. Second Wind rolls its die again; Nature deliberately does not.
+func test_restoring_names_the_dice_that_came_back() -> void:
+	_pool.roll()
+	_pool.set_aside(_pool.dice[0])
+	_pool.set_aside(_pool.dice[3])
+	var restored := _pool.restore(1)
+	assert_eq(restored.size(), 1, "one came back")
+	assert_true(restored[0] == _pool.dice[3], "and it is the one that did")
+
 func test_restoring_cannot_ask_for_more_than_was_set_aside() -> void:
 	_pool.roll()
 	_pool.set_aside(_pool.dice[0])
-	assert_eq(_pool.restore(5), 1, "only one to give back")
+	assert_eq(_pool.restore(5).size(), 1, "only one to give back")
 
 func test_restoring_nothing_is_harmless() -> void:
 	_pool.roll()
-	assert_eq(_pool.restore(0), 0)
+	assert_eq(_pool.restore(0).size(), 0)
 
 # --- hot dice --------------------------------------------------------------
 

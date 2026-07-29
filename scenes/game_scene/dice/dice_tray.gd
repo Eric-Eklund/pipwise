@@ -54,6 +54,14 @@ func play_roll() -> void:
 	for view in _die_views:
 		view.play_roll()
 
+## Replays the roll animation for some of the dice and leaves the rest still.
+## What a card that turned a die over asks for: play_roll() would shake six dice
+## to show that one of them changed, which reads as a roll that did not happen.
+func play_roll_for(dice : Array[Die]) -> void:
+	for view in _die_views:
+		if view.die in dice:
+			view.play_roll()
+
 ## Bursts the dice that were just taken. Takes the dice rather than reading the
 ## pool, because by the time this is called every die in the pool looks the same
 ## and only the caller knows which ones the player just chose.

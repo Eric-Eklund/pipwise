@@ -544,6 +544,7 @@ the next slice does not ship them dead.
 
 | Card | Decision | Why |
 | --- | --- | --- |
+| Extra Die | **Reworked** | "+1 die this round" is a seventh die, and the pool is fixed at what the bag holds — growing it would reach into the tray, the energy budget and hot dice at once. Built as **Second Wind**: a die you set aside comes back *rolled again*. Restoring it unrolled handed it back on the face that scored, so the card was worth one die's points twice over rather than a gamble. Its id is still `extra_die`, because that is what a saved hand stores |
 | Reroll Token, Forest Charm | **Dropped** | Rerolls are unlimited and free here (deviation 2). "+1 free reroll" is +1 of something you already have infinitely |
 | Coin Boost | **Dropped** | There is no currency (§6 unbuilt) |
 | Ice Scepter | Deferred | "Ice pairs count as triples" *is* the Ice trio, exactly. Needs a different effect before it can be an artifact |
