@@ -87,6 +87,33 @@ So the Take button offers the best selection rather than every scoring die, and
 says **Take best** when those differ. You can still take everything. It is just
 no longer free.
 
+### Cards
+
+Every turn your dice are worth energy — the pips they are showing, added up —
+and energy buys cards. You hold five, draw two more for every level you clear,
+and they go when the run does.
+
+| | | |
+| --- | --- | --- |
+| Extra Die | One die comes back to the table | 3⚡ |
+| Shield | A Farkle banks the turn instead of taking it | 5⚡ |
+| Draw 2 | Two more cards | 3⚡ |
+| Discard Swap | Throw the hand away and draw it again | 4⚡ |
+| 🔥❄️⚡💎 Potions | That element pays double its bonus this turn | 5-8⚡ |
+| 🌿 Earth Restore | Nature hands back one more die | 5⚡ |
+| ☠️ Shadow Veil | A Farkle *pays* you this turn | 6⚡ |
+
+The budget is taken once, at the top of the turn, and does not move afterwards —
+a wallet that shrank when you rolled badly would be a wallet you could not plan
+against.
+
+Shield is the interesting one. It does not hand the roll back; a dead board is
+still a dead board. What it buys is keeping the points you had already earned,
+which is the difference between a push you can afford and one you cannot.
+
+None of this is required. The level targets were measured against a player
+holding no cards at all, so the hand is upside and never a tax.
+
 ### Your dice
 
 You own a collection. It starts as six plain dice, and clearing a level grants
@@ -140,6 +167,7 @@ The targets are measured rather than guessed — see [Balance](#balance) below.
 | Path | Contents |
 | --- | --- |
 | `scripts/` | Game logic. Headless and testable — no scenes, no textures |
+| `scripts/cards/` | The cards, the hand and the deck |
 | `scenes/game_scene/` | The board, the dice views, the HUD |
 | `scenes/menus/`, `scenes/windows/` | Main menu, options, pause, guide, tutorial |
 | `resources/` | The campaign, skins and themes |
@@ -168,6 +196,9 @@ The seams that keep it open:
 - `MegaCombo` — the three §2.3 shapes, as pure data and one predicate. Where a
   fourth would go, and the reason a selection can now be worth less for being
   bigger.
+- `Card` — one thing energy can buy, with hooks that all do nothing by default.
+  A new card is a subclass, never a new branch in the turn loop, and cards reach
+  the scorer only through `ElementRules`.
 - `Objective` — what a level asks for. Two questions now rather than one, because
   a level is many turns: `is_met()` after a bank, `is_failed()` when turns run out.
 - `LevelModifier` — a boss twist, configured into the level rather than consulted

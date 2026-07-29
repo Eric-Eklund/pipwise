@@ -114,7 +114,8 @@ the class is for and what it deliberately is not.
 | Path | Contents |
 | --- | --- |
 | `scripts/dice/` | Die, DieType, DieFace, the pool, the elements |
-| `scripts/rules/` | Scoring, objectives, rulesets, boss modifiers |
+| `scripts/rules/` | Scoring, objectives, rulesets, boss modifiers, mega combos |
+| `scripts/cards/` | The cards, the hand and the deck |
 | `scripts/game/` | `FarkleGame` (the turn loop) and `GameContext` (the scoreboard) |
 | `scripts/campaign/` | The curve, endless, the dice collection and the run |
 | `scenes/game_scene/` | The board, the dice views, the HUD |
@@ -136,7 +137,13 @@ These exist so that new content is data rather than code. Use them.
 - **`Ruleset`** — everything else about a level. An authored
   `resources/rulesets/level_N.tres` overrides level N with no code change.
 - **`ElementRules`** — what the elements do, built per roll from the dice on the
-  table. Element effects live here, never in the scorer.
+  table. Element effects live here, never in the scorer. **Cards reach the scorer
+  through this and nowhere else** — a card that changes what an element pays is
+  folded in beside the element, so `FarkleScorer` never learns cards exist.
+- **`Card`** — one thing energy can buy. A `Resource` with virtual hooks that all
+  do nothing by default, exactly like `LevelModifier`, so a new card is a new
+  subclass and never a new branch in the turn loop. `CardLibrary` is the
+  catalogue; the hand is ids in `RunState`, the way the loadout already is.
 
 ## What is deliberately not built
 
@@ -145,9 +152,15 @@ The MVP is dice only. `docs/DESIGN.md` holds the full specification and a
 and why. Read that section before changing a scoring rule — several of the
 numbers look wrong and are not.
 
-Not built yet, in rough priority order: cards and spells (spec §3), the shop and
-currencies (§6), per-die levelling (§1.4), dice evolution and D8+ (§1.2), drop
-tables (§5.3).
+Not built yet, in rough priority order: the rest of the cards (§3.4-3.6 —
+artifacts, spells and relics), the shop and currencies (§6), per-die levelling
+(§1.4), dice evolution and D8+ (§1.2), drop tables (§5.3).
+
+**Before adding a card, read deviation 8 of `docs/DESIGN.md`.** Seven of §3's
+cards do nothing in this build — they are written against rerolls that cost
+something, a currency, and a death that takes items, none of which exist here.
+Two more duplicate a rule the dice already have. Transcribing the list is how you
+ship dead cards.
 
 Two known constraints worth keeping in mind:
 

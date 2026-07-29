@@ -88,6 +88,13 @@ func show_score(score : DiceScore) -> void:
 	else:
 		_play(combo, "+%d" % score.total(), Element.get_color(score.combo_element))
 
+## Announces a card. Its own colour rather than a neutral one, so a potion reads
+## as the element it boosts before the player has finished the tap.
+func show_card(card : Card) -> void:
+	if card == null:
+		return
+	_play(card.get_label(), "%d⚡" % card.energy_cost, card.get_color())
+
 func show_farkle(points_lost : int) -> void:
 	_play("FARKLE", "-%d" % points_lost if points_lost > 0 else "", FARKLE_COLOR)
 
