@@ -39,6 +39,11 @@ extends Card
 func can_play(game) -> bool:
 	return game != null and game.get_pool().set_aside_count() > count
 
+func get_refusal(game) -> String:
+	if game.get_pool().set_aside_count() == 0:
+		return "Nothing set aside to bring back."
+	return "The last die set aside has to stay, or there is nothing left to roll against."
+
 func on_played(game) -> void:
 	# Through the game's own seeded stream, like every other roll in the engine:
 	# a fixed seed has to reproduce a run, cards included.

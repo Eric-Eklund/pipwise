@@ -264,6 +264,65 @@ func test_playing_a_potion_updates_what_take_offers() -> void:
 	game.select_all_scoring()
 	assert_true(game.selection_score.total() > before, "the board is worth more now")
 
+## The campaign deals no elements at all before level 3, so for two levels every
+## potion in the hand was bright, buyable and worth nothing. A potion multiplies
+## its own element's share of the score, and on a board without that element
+## there is no share to multiply.
+func test_a_potion_is_refused_on_a_board_without_its_element() -> void:
+	var game := make_game()
+	var card := give(game, CardLibrary.FIRE_BREW)
+	assert_eq(game.rules.count_of(Element.FIRE), 0, "a plain bag")
+	assert_false(game.can_play_card(card), "so the potion has nothing to double")
+	assert_false(game.play_card(card), "and is refused")
+	assert_true(game.hand.holds(card.id), "keeping the card for the level that suits it")
+
+func test_a_potion_is_offered_when_its_element_is_on_the_table() -> void:
+	var game := fire_game()
+	var card := give(game, CardLibrary.FIRE_BREW)
+	assert_true(game.can_play_card(card), "there is Fire to double")
+
+## Earth Restore adds to what Nature hands back, and ElementRules.dice_restored()
+## returns zero outright without a Nature die, so it adds to nothing.
+func test_earth_restore_is_refused_without_nature() -> void:
+	var game := make_game()
+	var card := give(game, CardLibrary.EARTH_RESTORE)
+	assert_false(game.can_play_card(card), "nothing to hand back a die")
+
+## Shadow Veil carries an element for its name and its colour and for nothing
+## else: it grants the trio's effect outright rather than multiplying a die's
+## share, so it works on a board with no Shadow die anywhere. Guarding it the way
+## the other potions are guarded would take a working card off the player.
+func test_shadow_veil_works_without_shadow_dice() -> void:
+	var game := make_game()
+	var card := give(game, CardLibrary.SHADOW_VEIL)
+	assert_eq(game.rules.count_of(Element.SHADOW), 0, "no Shadow anywhere")
+	assert_true(game.can_play_card(card), "and it is still worth playing")
+	assert_true(game.play_card(card), "played")
+	assert_true(game.rules.farkle_penalty(100) < 0, "a Farkle now pays")
+
+# --- why a card will not go -------------------------------------------------
+
+## What the detail window shows when a card is held down. The row can only grey
+## a card out; this is the only thing that says why.
+func test_a_refused_card_says_why() -> void:
+	var game := make_game()
+	var card := give(game, CardLibrary.FIRE_BREW)
+	assert_true(
+		game.get_card_refusal(card).contains("Fire"),
+		"the reason names the element that is missing"
+	)
+
+func test_a_card_you_cannot_afford_says_so() -> void:
+	var game := make_game()
+	var card := give(game, CardLibrary.CRYSTAL_FOCUS)
+	game.context.energy_spent = game.context.total_energy()
+	assert_true(game.get_card_refusal(card).contains("⚡"), "the reason is the price")
+
+func test_a_playable_card_has_nothing_to_explain() -> void:
+	var game := make_game()
+	var card := give(game, CardLibrary.SHIELD)
+	assert_eq(game.get_card_refusal(card), "", "nothing is in its way")
+
 func test_earth_restore_hands_back_an_extra_die() -> void:
 	var game := make_game(StarterDice.create_element_bag(Element.NATURE, 2))
 	force_faces(game, [1, 5, 2, 3, 4, 4])

@@ -11,6 +11,12 @@ extends Button
 ## the level asks the engine, and the engine decides.
 
 signal card_pressed(card : Card)
+## The card was held down rather than tapped. What opens its detail window.
+signal card_held(card : Card)
+
+## How long a press has to last to count as a hold. Roughly Android's own long
+## press: much shorter and a slow tap opens a window nobody asked for.
+const HOLD_TIME := 0.45
 
 ## Sized in design pixels against a 540-wide viewport. The board keeps 22px of
 ## margin either side, so the row has 496 to spend: a full hand of five plus the
@@ -33,6 +39,10 @@ var card : Card
 var _name_label : Label
 var _cost_label : Label
 var _panel : PanelContainer
+var _hold_timer : Timer
+## Set when a hold has already been answered with a window, so the release that
+## follows does not also play the card. A press is either a tap or a hold.
+var _held := false
 
 func _init() -> void:
 	custom_minimum_size = Vector2(CARD_WIDTH, CARD_HEIGHT)
@@ -45,9 +55,56 @@ func _init() -> void:
 
 func _ready() -> void:
 	_build()
-	pressed.connect(func() -> void: card_pressed.emit(card))
+	pressed.connect(_on_pressed)
+
+## The hold is timed off raw input rather than off button_down and button_up.
+##
+## A disabled Button emits neither — and a card the row has greyed out is
+## exactly the card whose explanation the player wants, because "why not?" is
+## the only question a greyed card raises. _gui_input still arrives, because
+## disabling a button does not stop it being hit: it only stops it acting.
+##
+## The event is not accepted. The Button's own press handling has to run after
+## this, or a tap would stop playing the card.
+func _gui_input(event : InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var click := event as InputEventMouseButton
+		if click.button_index == MOUSE_BUTTON_LEFT:
+			_set_pressing(click.pressed)
+	elif event is InputEventScreenTouch:
+		_set_pressing((event as InputEventScreenTouch).pressed)
+
+## Touch is emulated onto mouse as well as delivered raw, so both arrive for one
+## finger. Restarting a running timer and stopping a stopped one are both
+## harmless, which is what lets this stay this short.
+func _set_pressing(down : bool) -> void:
+	if down:
+		_held = false
+		_hold_timer.start()
+	else:
+		_hold_timer.stop()
+
+func _on_hold() -> void:
+	if card == null:
+		return
+	_held = true
+	card_held.emit(card)
+
+func _on_pressed() -> void:
+	# The hold has already been answered with a window. Playing the card on the
+	# way out of it would be two actions bought with one press.
+	if _held:
+		_held = false
+		return
+	card_pressed.emit(card)
 
 func _build() -> void:
+	_hold_timer = Timer.new()
+	_hold_timer.one_shot = true
+	_hold_timer.wait_time = HOLD_TIME
+	_hold_timer.timeout.connect(_on_hold)
+	add_child(_hold_timer)
+
 	_panel = PanelContainer.new()
 	_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -559,6 +559,30 @@ Shadow pay no points at all**; Nature returns dice and Shadow softens a bust.
 Four potions are the uniform kind and two are their own effects, which is why
 `ElementBoostCard` covers Fire, Ice, Lightning and Crystal and no more.
 
+**A potion is refused on a board without its element.** This reverses an earlier
+decision, recorded here because the earlier one was deliberate and argued: a
+potion for an element you did not bring is a bad draw, and Discard Swap is the
+answer to a hand of them. That is still true. What it missed is §5's schedule.
+The campaign deals **no elements at all until level 3**, and each element arrives
+once — Lightning on 6, Nature on 7 — so at most two of the six potions can pay on
+any level, and none can on the two levels where a new player first meets the
+hand. Every one of them was drawn bright, buyable, and worth nothing, and the
+first thing a player did with the card row was spend a quarter of a turn's energy
+on a card that did not move a single number. `can_play()` now answers false when
+the element is not in play, which costs the player nothing: the card sits in hand
+until the level it was drawn for.
+
+`ShadowVeilCard` is deliberately **not** guarded this way. It carries
+`Element.SHADOW` for its name and its colour and nothing else — it grants the
+trio's effect outright rather than multiplying a die's share, so it pays on a
+board with no Shadow die anywhere.
+
+Holding a card down opens `CardDetailWindow`, which is where the refusal is
+explained. That window is the only place the game says *why* a card will not go,
+so it answers for a greyed out card as readily as a bright one — which is why
+`CardView` times its hold off `_gui_input` rather than `button_down`: a disabled
+Button emits no button signals at all.
+
 **A card's "one round" is one turn**, not one level. §4's stage flow reads as a
 level, but its steps are a single push-your-luck sequence, which is a turn here.
 

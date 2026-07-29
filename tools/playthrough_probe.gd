@@ -27,7 +27,9 @@ extends Node
 ## instead of shipping — see _play_a_card(). And the energy the row shows is
 ## compared against the energy the turn holds, because that number is written
 ## by a view and read by nobody else, so it can drift from the engine without a
-## single test noticing — see _check_energy().
+## single test noticing — see _check_energy(). And holding a card down has to
+## open its detail window even when the card is greyed out, which is the only
+## place the game says *why* it is greyed out — see _check_card_hold().
 ##
 ## A scene rather than a `--script`, because the levels reach GameState on ready
 ## and the autoloads only exist when a scene is run.
@@ -65,6 +67,8 @@ func _ready() -> void:
 	window.size = window.content_scale_size
 	await get_tree().process_frame
 
+	await _check_card_hold()
+
 	for level in range(1, 11):
 		await _play_scene("%s/level_%d.tscn" % [LEVEL_DIR, level], "level %d" % level)
 	await _play_scene(ENDLESS, "endless")
@@ -77,6 +81,80 @@ func _ready() -> void:
 		for failure in _failures:
 			print("  FAIL  %s" % failure)
 		get_tree().quit(1)
+
+## Holding a card down has to open its detail window, and a greyed out card most
+## of all — that window carries the only sentence in the game that says why a
+## card will not go, and a player who cannot reach it is left with a dim
+## rectangle and no explanation.
+##
+## Worth a check of its own because Godot ignores input on a disabled Button:
+## the hold is timed off _gui_input for exactly that reason, and a later hand
+## that moved it to button_down would break the greyed case only — the case
+## nobody tests by hand, because bright cards are the ones you reach for.
+##
+## Run once, on level 1. It costs a real second of waiting, and the affordance
+## is the same on every level.
+func _check_card_hold() -> void:
+	var packed : PackedScene = load("%s/level_1.tscn" % LEVEL_DIR)
+	var level := packed.instantiate() as FarkleLevel
+	level.rng_seed = 3
+	add_child(level)
+	await get_tree().process_frame
+	_dismiss_loadout(level)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var row : Control = level.find_child("CardRow", true, false)
+	var target : Button = null
+	var greyed := false
+	for view in row.find_children("*", "Button", true, false):
+		var button := view as Button
+		# A refused card first, an offered one only as a fallback: the hand is
+		# dealt from a seeded deck and need not contain one of each.
+		if button.disabled and not greyed:
+			target = button
+			greyed = true
+		elif target == null:
+			target = button
+
+	if target == null:
+		_failures.append("card hold: the hand drew no cards to hold")
+	else:
+		var spent_before := level.game.context.energy_spent
+		await _hold(target)
+		if level.find_child("CardDetailWindow", true, false) == null:
+			_failures.append("card hold: holding %s opened no window (greyed: %s)" % [
+				target.card.display_name, greyed
+			])
+		elif level.game.context.energy_spent != spent_before:
+			# A press is either a tap or a hold. Paying for the card *and*
+			# opening its window is two actions bought with one finger.
+			_failures.append("card hold: holding %s also played it" % target.card.display_name)
+		else:
+			print("  %-10s held %s, window opened, card not spent" % [
+				"card hold", target.card.display_name
+			])
+
+	remove_child(level)
+	level.queue_free()
+
+## Presses, waits past the hold threshold, and releases — at the control's own
+## rect, like every other press this probe makes.
+func _hold(button : Button) -> void:
+	var at := button.get_global_rect().get_center()
+	_touch(at, true)
+	await get_tree().create_timer(CardView.HOLD_TIME + 0.2).timeout
+	_touch(at, false)
+	await get_tree().process_frame
+
+## A finger rather than the mouse event _tap() sends. The hold is the one thing
+## here that reads raw input itself, so it is worth pushing the event an actual
+## phone pushes.
+func _touch(at : Vector2, down : bool) -> void:
+	var touch := InputEventScreenTouch.new()
+	touch.position = at
+	touch.pressed = down
+	get_viewport().push_input(touch)
 
 func _play_scene(path : String, label : String) -> void:
 	var packed : PackedScene = load(path)

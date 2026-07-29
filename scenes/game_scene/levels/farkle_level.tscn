@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scenes/game_scene/levels/farkle_level.gd" id="1_level"]
 [ext_resource type="PackedScene" path="res://scenes/game_scene/hud/score_hud.tscn" id="2_scorehud"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/game_scene/effects/board_sounds.tscn" id="8_sounds"]
 [ext_resource type="PackedScene" path="res://scenes/windows/loadout_window.tscn" id="9_loadout"]
 [ext_resource type="Script" path="res://scenes/game_scene/cards/card_row.gd" id="10_cardrow"]
+[ext_resource type="PackedScene" path="res://scenes/windows/card_detail_window.tscn" id="11_carddetail"]
 
 [node name="FarkleLevel" type="Control"]
 layout_mode = 3
@@ -21,6 +22,7 @@ grow_vertical = 2
 theme = ExtResource("4_theme")
 script = ExtResource("1_level")
 guide_scene = ExtResource("5_guide")
+card_detail_scene = ExtResource("11_carddetail")
 loadout_scene = ExtResource("9_loadout")
 
 [node name="Background" type="ColorRect" parent="."]

@@ -12,6 +12,8 @@ extends VBoxContainer
 ## a hand of five is cheap to redraw.
 
 signal card_pressed(card : Card)
+## A card was held down. The level answers it with the card's detail window.
+signal card_held(card : Card)
 
 ## Shown above the row so the cost on each card means something.
 const ENERGY_COLOR := Color(0.98, 0.85, 0.42)
@@ -82,6 +84,8 @@ func _rebuild(cards : Array[Card]) -> void:
 		view.set_card(card)
 		view.card_pressed.connect(func(pressed_card : Card) -> void:
 			card_pressed.emit(pressed_card))
+		view.card_held.connect(func(held_card : Card) -> void:
+			card_held.emit(held_card))
 		_views.append(view)
 
 ## What the turn has left to spend. Says "spent" rather than "0 energy" when the
