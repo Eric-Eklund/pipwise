@@ -67,6 +67,7 @@ func _ready() -> void:
 ##     --seed=7      reproduce a particular roll
 ##     --mark=0,1    mark those dice
 ##     --take=1      commit whatever is marked, or everything that scores
+##     --play=1      play the first card the hand can afford
 ##     --farkle=800  force a Farkle that costs that many points
 ##     --guide=1     open the scoring guide
 ##
@@ -85,6 +86,17 @@ func _drive(scene : Node, args : Dictionary) -> void:
 		if level.game.get_selection().is_empty():
 			level.game.select_all_scoring()
 		level.game.commit_selection()
+	# Pressed rather than played through the engine, because spending a card is
+	# the one thing that rebuilds the row — and a row that redraws itself wrong is
+	# only visible in a picture taken after it has.
+	if args.has("play"):
+		var row : Control = level.find_child("CardRow", true, false)
+		if row != null:
+			for node in row.find_children("*", "Button", true, false):
+				var card_button := node as Button
+				if not card_button.disabled:
+					card_button.pressed.emit()
+					break
 	if args.has("farkle"):
 		# Forced rather than rolled for, so the Farkle feedback can be looked at
 		# without hunting for a seed that produces one.

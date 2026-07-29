@@ -12,10 +12,16 @@ extends Button
 
 signal card_pressed(card : Card)
 
-## Sized in design pixels against a 540-wide viewport. Five across a 540 row
-## leaves about 96 each, which on a 1440-wide phone is roughly 73dp — well over
-## the 48dp Android asks of a tap target.
-const CARD_WIDTH := 96.0
+## Sized in design pixels against a 540-wide viewport. The board keeps 22px of
+## margin either side, so the row has 496 to spend: a full hand of five plus the
+## 5px between them fits at 92, which on a 1440-wide phone is roughly 70dp — well
+## over the 48dp Android asks of a tap target.
+##
+## This is a floor, not the drawn width. The views expand to fill the row, so a
+## hand of three still draws three wide cards. It was 96, which is 4px too much
+## across a full hand: the row asked for 500, the board grew past the screen to
+## give it, and everything on it shifted left by the overhang.
+const CARD_WIDTH := 92.0
 const CARD_HEIGHT := 74.0
 
 ## How far an unaffordable card fades. Still readable: the player needs to know
