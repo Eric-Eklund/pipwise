@@ -30,6 +30,9 @@ func _ready() -> void:
 	add_child(_energy_label)
 
 	_cards_box = HBoxContainer.new()
+	# Named because the probes report layout trouble by node name, and "the second
+	# HBoxContainer" is not something anyone can act on.
+	_cards_box.name = "Cards"
 	_cards_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	_cards_box.add_theme_constant_override(&"separation", 5)
 	add_child(_cards_box)
@@ -59,6 +62,14 @@ func refresh(game : FarkleGame) -> void:
 
 func _rebuild(cards : Array[Card]) -> void:
 	for view in _views:
+		# Unparented before it is freed, not merely queued. queue_free() leaves the
+		# node in the row until the end of the frame, so a hand of five being
+		# replaced by three spent a frame as a row of eight — 800px of minimum
+		# width on a 540px screen. The board is grown to whatever its contents
+		# demand, and a full-rect Control that has outgrown its parent is centred
+		# on it, so the whole layout stayed hanging off both edges from then on:
+		# the dice half off the screen, the buttons cut in half.
+		_cards_box.remove_child(view)
 		view.queue_free()
 	_views.clear()
 	for card in cards:

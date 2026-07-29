@@ -96,6 +96,18 @@ over the 48dp Android asks of a tap target. It was 720 wide until a real device
 showed the buttons coming out at 32dp. If you shrink a control, do that maths
 first.
 
+**Nothing on the board may ask for more width than the screen.** Godot grows a
+Control to its minimum size whatever its anchors say, and a full-rect Control
+that has outgrown its parent is centred on it — so a row wanting 500px inside a
+496px board drags the whole layout off both edges, and it stays there, because
+the shrink back does not re-run the sizing. Two ways in, both already shipped
+once: a minimum width that only fits at full count (five cards in a hand, six
+dice in a row), and `queue_free()`, which leaves a node in its row until the end
+of the frame — so a row rebuilt in one frame is briefly the old row *and* the new
+one. `DiceTray._update_die_sizes()` floors its share for the same reason: a die's
+size is its minimum size, so a row that rounds up asks for room it was not given.
+The playthrough probe checks this on every step now.
+
 **Difficulty numbers are measured, not guessed.** `Campaign.TARGETS` came from
 `tools/balance_probe.gd`. Rerun it after touching a target, a turn count, a bag,
 or anything in the scoring table — all of them move the whole curve. The bot

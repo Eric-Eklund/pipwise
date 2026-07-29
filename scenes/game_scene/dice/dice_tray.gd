@@ -32,6 +32,11 @@ func _ready() -> void:
 ## Builds one view per die. Call once per level.
 func show_dice(dice : Array[Die]) -> void:
 	for view in _die_views:
+		# Unparented before it is freed: queue_free() alone leaves it in the row
+		# until the end of the frame, and a round that rebuilds its dice — endless
+		# does, every round — would spend that frame asking for twice the width it
+		# has. See _update_die_sizes for what a row wider than the screen costs.
+		view.get_parent().remove_child(view)
 		view.queue_free()
 	_die_views.clear()
 	if die_view_scene == null:
@@ -78,6 +83,16 @@ func refresh_state(game : FarkleGame) -> void:
 ## Divides the available width between the dice so neither row overflows and the
 ## faces stay square. Sized against the fuller row, so a die does not change
 ## size when it moves between them.
+##
+## ## Why the size is floored
+##
+## A die's size is its minimum size, and a row's minimum size is what its dice
+## add up to — so this decides how much width the tray demands of the board.
+## Demand a pixel more than the tray was given and the board grows to supply it,
+## which makes the tray wider, which lets the next pass demand more still: the
+## dice run up to MAX_DIE_SIZE and hang off both edges of the screen. Flooring
+## keeps the sum at or under the width the tray already has, which is what stops
+## that loop from having a first step.
 func _update_die_sizes() -> void:
 	if _die_views.is_empty():
 		return
@@ -86,7 +101,7 @@ func _update_die_sizes() -> void:
 	)
 	var separation := _in_play_row.get_theme_constant(&"separation")
 	var available := size.x - float(separation * (count - 1))
-	var extent := clampf(available / float(count), MIN_DIE_SIZE, MAX_DIE_SIZE)
+	var extent := clampf(floorf(available / float(count)), MIN_DIE_SIZE, MAX_DIE_SIZE)
 	for view in _die_views:
 		view.custom_minimum_size = Vector2(extent, extent)
 

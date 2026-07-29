@@ -13,6 +13,14 @@ extends Node
 ## looking at a board they cannot act on. The headless tests will never see it,
 ## because they call the engine directly and never ask what the UI is offering.
 ##
+## It also watches how wide the board asks to be. A board that asks for more
+## width than the screen has is given it — Godot grows a Control to its minimum
+## size whatever its anchors say — and a full-rect Control that has outgrown its
+## parent is centred on it, so the whole layout ends up hanging off both edges
+## with the dice half off the screen. Nothing else here would notice: the rules
+## are fine, every button works, and the game is simply drawn somewhere the
+## player cannot reach. See _check_width().
+##
 ## A scene rather than a `--script`, because the levels reach GameState on ready
 ## and the autoloads only exist when a scene is run.
 ##
@@ -26,8 +34,26 @@ const SEEDS : Array[int] = [1, 2, 3, 7, 11]
 const MAX_STEPS := 3000
 
 var _failures : Array[String] = []
+## The width every size in the project is drawn against. Read from the project
+## rather than from the window, because a headless run gets whatever window the
+## platform felt like giving it and the answer has to be the phone's.
+var _design_width : float = float(
+	ProjectSettings.get_setting("display/window/size/viewport_width", 540)
+)
 
 func _ready() -> void:
+	# The probe measures widths, so it has to lay the levels out at the size the
+	# game ships at rather than at whatever a headless window defaults to.
+	var window := get_window()
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	window.content_scale_size = Vector2i(
+		int(_design_width),
+		int(ProjectSettings.get_setting("display/window/size/viewport_height", 960))
+	)
+	window.size = window.content_scale_size
+	await get_tree().process_frame
+
 	for level in range(1, 11):
 		await _play_scene("%s/level_%d.tscn" % [LEVEL_DIR, level], "level %d" % level)
 	await _play_scene(ENDLESS, "endless")
@@ -89,9 +115,14 @@ func _dismiss_loadout(level : FarkleLevel) -> void:
 	start.pressed.emit()
 
 ## The bot, pressing buttons instead of calling the engine. Deliberately greedy
-## and dumb — it takes whatever is offered and banks the moment it can, which
-## makes the clear rates here a lower bound and not a balance measurement. Use
-## tools/balance_probe.gd for that.
+## and dumb — it takes whatever is offered, plays whatever it can afford and
+## banks the moment it can, which makes the clear rates here a lower bound and
+## not a balance measurement. Use tools/balance_probe.gd for that.
+##
+## It plays cards because the hand is the one thing on the board that changes
+## shape: cards are spent and drawn, and the row is rebuilt around whatever is
+## left. A bot that only pressed Take, Roll and Bank would play every level with
+## the hand it started with and never see the row redrawn at all.
 func _drive(level : FarkleLevel) -> String:
 	var take : Button = level.find_child("TakeButton", true, false)
 	var roll : Button = level.find_child("RollButton", true, false)
@@ -103,6 +134,9 @@ func _drive(level : FarkleLevel) -> String:
 		var game := level.game
 		if game == null:
 			return "no game — are the autoloads loaded?"
+		var too_wide := _check_width(level)
+		if not too_wide.is_empty():
+			return too_wide
 		match game.state:
 			FarkleGame.State.WON:
 				return "won"
@@ -114,6 +148,8 @@ func _drive(level : FarkleLevel) -> String:
 			_:
 				pass
 
+		if _play_a_card(level):
+			continue
 		if not take.disabled:
 			take.pressed.emit()
 		elif not bank.disabled:
@@ -123,3 +159,50 @@ func _drive(level : FarkleLevel) -> String:
 		else:
 			return "deadlocked on turn %d — every button disabled" % game.context.turn
 	return "did not reach a verdict in %d steps" % MAX_STEPS
+
+## Presses the first card the row is offering, and says whether it pressed one.
+## Through the button like everything else here: a card the engine would allow
+## but the row draws as greyed out is exactly the kind of gap this probe is for.
+func _play_a_card(level : FarkleLevel) -> bool:
+	var row : Control = level.find_child("CardRow", true, false)
+	if row == null or not row.visible:
+		return false
+	for view in row.find_children("*", "Button", true, false):
+		var button := view as Button
+		if not button.disabled:
+			button.pressed.emit()
+			return true
+	return false
+
+## Whether the board is asking for more room than the screen has.
+##
+## Checked on the minimum size rather than on the drawn size, because the minimum
+## is what does the damage and it is computed on demand — this loop presses
+## buttons without waiting for frames, so the drawn sizes are a layout pass or
+## two behind while the minimums are current.
+##
+## Only the width. The height is allowed to run over: the stretch is 540 wide and
+## as tall as the phone, so the board is measured against a height nobody knows.
+func _check_width(level : FarkleLevel) -> String:
+	var board : Control = level.find_child("Board", true, false)
+	if board == null:
+		return ""
+	var wanted := board.get_combined_minimum_size().x
+	if wanted <= _design_width:
+		return ""
+	return "board wants %.0fpx of a %.0fpx screen — %s" % [
+		wanted, _design_width, _widest_child(board)
+	]
+
+## Names what is doing the asking, so a failure points at a row rather than at
+## the board as a whole.
+func _widest_child(board : Control) -> String:
+	var worst := ""
+	var worst_width := 0.0
+	for node in board.find_children("*", "Control", true, false):
+		var child := node as Control
+		var width := child.get_combined_minimum_size().x
+		if width > worst_width:
+			worst_width = width
+			worst = "%s wants %.0f" % [child.name, width]
+	return worst if not worst.is_empty() else "nothing in it admits to it"
