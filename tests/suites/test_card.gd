@@ -97,6 +97,77 @@ func test_extra_die_is_refused_when_nothing_has_been_set_aside() -> void:
 	var card := give(game, CardLibrary.EXTRA_DIE)
 	assert_false(game.can_play_card(card), "every die is already in play")
 
+## The die comes back rolled, not on the face it was set aside on. Restoring
+## alone handed it back already scoring — it was set aside *because* it scored —
+## so the card was worth a second helping of one die's points rather than a
+## gamble on a fresh face.
+##
+## Asserted against the type's own faces rather than against a value: force_faces
+## mints a face that no DieType holds, and only a real roll can replace it with
+## one that does. A value would be a coin flip on the seed.
+func test_extra_die_rolls_the_die_it_brings_back() -> void:
+	var game := make_game()
+	force_faces(game, [1, 1, 3, 4, 6, 2])
+	game.select_all_scoring()
+	game.commit_selection()
+
+	var restored_before := game.get_pool().get_set_aside()
+	assert_true(game.play_card(give(game, CardLibrary.EXTRA_DIE)), "played")
+
+	var came_back : Die = null
+	for die in game.get_dice_in_play():
+		if die in restored_before:
+			came_back = die
+	assert_true(came_back != null, "a die came back")
+	assert_true(
+		came_back.current_face in came_back.type.faces,
+		"and it was rolled rather than handed back on its old face"
+	)
+
+## Restoring the last set aside die would leave nothing to push against, and the
+## reroll can leave nothing to take — which on level 5, behind the bank gate, is
+## a board with all three buttons dead.
+func test_extra_die_will_not_restore_the_last_die_set_aside() -> void:
+	var game := make_game()
+	var card := give(game, CardLibrary.EXTRA_DIE)
+	force_faces(game, [1, 3, 4, 6, 2, 2])
+	game.select_all_scoring()
+	game.commit_selection()
+	assert_eq(game.get_pool().set_aside_count(), 1, "exactly one commitment")
+	assert_true(game.hand.holds(card.id), "the card is held")
+	assert_false(game.can_play_card(card), "so there is nothing it may take back")
+
+func test_extra_die_leaves_the_push_legal() -> void:
+	var game := make_game()
+	force_faces(game, [1, 1, 3, 4, 6, 2])
+	game.select_all_scoring()
+	game.commit_selection()
+	game.play_card(give(game, CardLibrary.EXTRA_DIE))
+	assert_true(game.can_push(), "there is still a commitment to roll against")
+
+## The signal has to name the dice a card turned over: the tray redraws a face
+## only when it rolls one, so a die missing from here keeps showing the old face
+## while the scorer reads the new one.
+func test_playing_a_card_reports_the_dice_it_rolled() -> void:
+	var game := make_game()
+	force_faces(game, [1, 1, 3, 4, 6, 2])
+	game.select_all_scoring()
+	game.commit_selection()
+
+	var reported : Array = []
+	game.card_played.connect(func(_card : Card, rerolled : Array[Die]) -> void:
+		reported = rerolled)
+
+	game.play_card(give(game, CardLibrary.SHIELD))
+	assert_eq(reported.size(), 0, "Shield touches no dice, so it names none")
+
+	# Not a count: a reroll may land on the face it left, and a die that did not
+	# change is a die the tray has nothing to redraw. What must hold is that
+	# nothing is named that the card did not put back on the table.
+	game.play_card(give(game, CardLibrary.EXTRA_DIE))
+	for die in reported:
+		assert_true(die in game.get_dice_in_play(), "only dice it brought back")
+
 func test_draw_two_is_a_net_gain_even_on_a_full_hand() -> void:
 	var game := make_game()
 	game.hand.hand = [CardLibrary.DRAW_TWO] as Array[StringName]

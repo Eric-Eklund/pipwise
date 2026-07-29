@@ -38,8 +38,11 @@ signal farkled(points_lost : int)
 signal banked(points : int)
 signal hot_dice
 ## A card was paid for and played. Carries the card so the row can animate the
-## one that went rather than redrawing the whole hand.
-signal card_played(card : Card)
+## one that went rather than redrawing the whole hand, and any dice the card
+## changed the face of — the tray redraws a face only when it rolls one, so a
+## card that moved the dice and did not say so would leave the old face on
+## screen while the engine scored the new one.
+signal card_played(card : Card, rerolled : Array[Die])
 signal turn_started(turn : int)
 signal state_changed(new_state : State)
 signal level_won
@@ -345,6 +348,7 @@ func play_card(card : Card) -> bool:
 	context.spend_energy(card.energy_cost)
 	hand.discard(card.id)
 	_active_cards.append(card)
+	var faces_before := _face_snapshot()
 	card.on_played(self)
 
 	# Rebuilt rather than mutated, because the scoring cache is keyed on this
@@ -352,10 +356,32 @@ func play_card(card : Card) -> bool:
 	# the pre-card answer until the next roll.
 	rules = ElementRules.new(get_dice_in_play(), _active_cards)
 
-	card_played.emit(card)
+	# dice_changed first: it is what moves a restored die out of the set aside
+	# row, and the roll animation card_played asks for should play on a die that
+	# is already where it belongs.
 	dice_changed.emit()
+	card_played.emit(card, _dice_rerolled_since(faces_before))
 	_refresh_selection_score()
 	return true
+
+## What every die is showing, by index. Taken either side of on_played() so the
+## view can be told exactly which dice a card turned over.
+##
+## Worked out here rather than reported by the card, because a card carries no
+## state about having been played and should not have to remember to mention
+## this. §3.5's spells turn the whole board over; they will be seen for free.
+func _face_snapshot() -> Array[int]:
+	var faces : Array[int] = []
+	for die in context.pool.dice:
+		faces.append(die.get_value())
+	return faces
+
+func _dice_rerolled_since(faces_before : Array[int]) -> Array[Die]:
+	var changed : Array[Die] = []
+	for i in context.pool.dice.size():
+		if i < faces_before.size() and context.pool.dice[i].get_value() != faces_before[i]:
+			changed.append(context.pool.dice[i])
+	return changed
 
 # --- banking ---------------------------------------------------------------
 

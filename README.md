@@ -95,7 +95,7 @@ and they go when the run does.
 
 | | | |
 | --- | --- | --- |
-| Extra Die | One die comes back to the table | 3⚡ |
+| Second Wind | A die you set aside comes back, rolled again | 3⚡ |
 | Shield | A Farkle banks the turn instead of taking it | 5⚡ |
 | Draw 2 | Two more cards | 3⚡ |
 | Discard Swap | Throw the hand away and draw it again | 4⚡ |

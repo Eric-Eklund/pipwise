@@ -107,22 +107,25 @@ func set_aside_all(selection : Array[Die]) -> int:
 	return count
 
 ## Hands [param count] dice back to the table, newest commitments first. Nature's
-## doing. Returns how many actually came back, which is fewer than asked when
-## the turn has not set that many aside yet.
+## doing. Returns the dice that actually came back, which is fewer than asked
+## when the turn has not set that many aside yet.
 ##
 ## Newest first because those are the dice the player just chose, so the ones
 ## coming back are the ones they are still looking at.
-func restore(count : int) -> int:
+##
+## The dice rather than a count, because a caller may want to do something to
+## them: Second Wind rerolls what it buys back, and Nature deliberately does not.
+func restore(count : int) -> Array[Die]:
+	var restored : Array[Die] = []
 	if count <= 0:
-		return 0
-	var restored := 0
+		return restored
 	for i in range(dice.size() - 1, -1, -1):
-		if restored >= count:
+		if restored.size() >= count:
 			break
 		if dice[i].is_set_aside:
 			dice[i].is_set_aside = false
 			set_aside_changed.emit(dice[i])
-			restored += 1
+			restored.append(dice[i])
 	return restored
 
 ## Whether every die has been set aside, which is what earns hot dice.

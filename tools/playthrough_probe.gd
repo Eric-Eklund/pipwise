@@ -21,6 +21,14 @@ extends Node
 ## are fine, every button works, and the game is simply drawn somewhere the
 ## player cannot reach. See _check_width().
 ##
+## Two more things it watches, both of them things only a scene can be wrong
+## about. The hand is tapped through the input system rather than by emitting
+## `pressed`, so a card that is drawn where no finger can reach it fails here
+## instead of shipping — see _play_a_card(). And the energy the row shows is
+## compared against the energy the turn holds, because that number is written
+## by a view and read by nobody else, so it can drift from the engine without a
+## single test noticing — see _check_energy().
+##
 ## A scene rather than a `--script`, because the levels reach GameState on ready
 ## and the autoloads only exist when a scene is run.
 ##
@@ -40,6 +48,9 @@ var _failures : Array[String] = []
 var _design_width : float = float(
 	ProjectSettings.get_setting("display/window/size/viewport_width", 540)
 )
+## What CardRow writes when there is anything left to spend. Built once: this is
+## read on every step of every run.
+var _energy_text := RegEx.create_from_string("(\\d+) of (\\d+)")
 
 func _ready() -> void:
 	# The probe measures widths, so it has to lay the levels out at the size the
@@ -86,7 +97,7 @@ func _play_scene(path : String, label : String) -> void:
 		_dismiss_loadout(level)
 		await get_tree().process_frame
 
-		var outcome := _drive(level)
+		var outcome := await _drive(level)
 		if outcome == "won":
 			wins += 1
 		elif outcome != "lost":
@@ -137,6 +148,9 @@ func _drive(level : FarkleLevel) -> String:
 		var too_wide := _check_width(level)
 		if not too_wide.is_empty():
 			return too_wide
+		var bad_energy := _check_energy(level)
+		if not bad_energy.is_empty():
+			return bad_energy
 		match game.state:
 			FarkleGame.State.WON:
 				return "won"
@@ -148,8 +162,11 @@ func _drive(level : FarkleLevel) -> String:
 			_:
 				pass
 
-		if _play_a_card(level):
+		var card_result := await _play_a_card(level)
+		if card_result == "played":
 			continue
+		if not card_result.is_empty():
+			return card_result
 		if not take.disabled:
 			take.pressed.emit()
 		elif not bank.disabled:
@@ -160,19 +177,106 @@ func _drive(level : FarkleLevel) -> String:
 			return "deadlocked on turn %d — every button disabled" % game.context.turn
 	return "did not reach a verdict in %d steps" % MAX_STEPS
 
-## Presses the first card the row is offering, and says whether it pressed one.
-## Through the button like everything else here: a card the engine would allow
-## but the row draws as greyed out is exactly the kind of gap this probe is for.
-func _play_a_card(level : FarkleLevel) -> bool:
+## Taps the first card the row is offering. Returns "played" if one went, "" if
+## there was nothing to play, and a failure otherwise.
+##
+## ## Why this one goes through the input system
+##
+## Every other press here is pressed.emit(), which reaches the handler without
+## ever asking whether the button could be *hit*. That is enough for Take, Roll
+## and Bank: they are authored in the scene, in fixed places, and a press that
+## could not land would have to be a regression in the level layout.
+##
+## The hand is not. Its buttons are built in code and rebuilt whenever a card is
+## spent or drawn, so their rects come from a container that re-sorts under them
+## — and a card drawn in the right place that no finger can reach looks, to the
+## player, exactly like a card that does nothing. pressed.emit() cannot tell the
+## two apart and would pass either way. This aims a real event at the button's
+## own rect and then checks the turn actually paid for it.
+##
+## A mouse event rather than a touch one: Godot emulates touch onto this handler,
+## so both arrive by the same route and the hit test is the one a finger takes.
+## What this proves is that the button is reachable where it is drawn, not
+## anything touch-specific.
+func _play_a_card(level : FarkleLevel) -> String:
 	var row : Control = level.find_child("CardRow", true, false)
 	if row == null or not row.visible:
-		return false
+		return ""
+	var button := _first_playable_card(row)
+	if button == null:
+		return ""
+
+	# The row is rebuilt whenever the hand changes, and a freshly built button
+	# has no rect until its container has sorted. Aiming at a rect means waiting
+	# for one, which pressed.emit() never had to do.
+	await get_tree().process_frame
+	if not is_instance_valid(button) or button.disabled:
+		return ""
+
+	# Energy rather than the hand size, because the hand is not a reliable
+	# witness: Draw 2 discards one card and draws two, so a full hand is the
+	# same size afterwards. Every card costs something, and nothing else in a
+	# turn spends energy.
+	var spent_before := level.game.context.energy_spent
+	var at := button.get_global_rect().get_center()
+	_tap(at)
+	if level.game.context.energy_spent != spent_before:
+		return "played"
+
+	# The tap did not land. Fall through to the handler so the run still reaches
+	# a verdict and the rest of the level is still covered — but say so, because
+	# a card that answers its handler and not its own rect is either a button
+	# nobody can reach or a probe that cannot reach one, and both want a human.
+	button.pressed.emit()
+	if level.game.context.energy_spent == spent_before:
+		return "the row drew a card as playable that the game then refused"
+	return "a card answered pressed() but not a tap at %s" % at
+
+func _first_playable_card(row : Control) -> Button:
 	for view in row.find_children("*", "Button", true, false):
 		var button := view as Button
 		if not button.disabled:
-			button.pressed.emit()
-			return true
-	return false
+			return button
+	return null
+
+## Aims a press and a release at [param at]. Both are needed: a Button fires on
+## release by default, and a release on its own is not a press.
+func _tap(at : Vector2) -> void:
+	for is_down in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.pressed = is_down
+		click.position = at
+		click.global_position = at
+		get_viewport().push_input(click)
+
+## Whether the energy the row is showing is the energy the turn actually has.
+##
+## The number is written by the row and read by nobody else, so no test that
+## talks to the engine can see it drift — and it did: the budget is taken after
+## the roll that refreshes the row, so from turn 2 on the player was choosing
+## cards against the previous turn's figure.
+func _check_energy(level : FarkleLevel) -> String:
+	var label : Label = level.find_child("EnergyLabel", true, false)
+	if label == null or not label.is_visible_in_tree():
+		return ""
+	var context := level.game.context
+	var numbers := _energy_text.search(label.text)
+	if numbers == null:
+		# The other thing the row ever says. It has to mean what it says.
+		if context.available_energy() > 0:
+			return "the row says \"%s\" with %d energy left" % [
+				label.text, context.available_energy()
+			]
+		return ""
+	var shown_left := int(numbers.get_string(1))
+	var shown_total := int(numbers.get_string(2))
+	if shown_left == context.available_energy() and shown_total == context.total_energy():
+		return ""
+	return "the row shows %d of %d energy on turn %d, the turn has %d of %d" % [
+		shown_left, shown_total, context.turn,
+		context.available_energy(), context.total_energy()
+	]
 
 ## Whether the board is asking for more room than the screen has.
 ##

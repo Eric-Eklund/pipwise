@@ -96,8 +96,10 @@ static func _build() -> void:
 	if not _cards.is_empty():
 		return
 
-	_add(_scroll(ExtraDieCard.new(), EXTRA_DIE, "Extra Die",
-		"One die comes back to the table.", 3))
+	# The id is still `extra_die` — it is what saved hands hold. The name is not,
+	# because "Extra Die" promised a seventh die the pool cannot grow to.
+	_add(_scroll(ExtraDieCard.new(), EXTRA_DIE, "Second Wind",
+		"A die you set aside comes back, rolled again.", 3))
 	_add(_scroll(ShieldCard.new(), SHIELD, "Shield",
 		"A Farkle costs you nothing this turn.", 5))
 	_add(_scroll(DrawCard.new(), DRAW_TWO, "Draw 2",

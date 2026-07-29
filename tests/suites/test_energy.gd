@@ -84,6 +84,62 @@ func test_taking_the_budget_announces_it() -> void:
 	_context.snapshot_energy()
 	assert_eq(fired[0], 1, "the row has something new to draw")
 
+## What the card row hangs off, and the reason it was showing the wrong number.
+##
+## A turn takes its budget *after* the opening roll, so every refresh that roll
+## sets off — dice_changed, score_changed — still reads the turn before's
+## figure. energy_changed is the only one that fires once the snapshot is in, so
+## a view that listens to it has to be able to trust it: by the time the last of
+## these arrives, the budget must be the pips now on the table.
+func test_the_budget_is_current_by_the_time_it_is_announced() -> void:
+	var game := _started_game()
+	var announced : Array[int] = []
+	game.context.energy_changed.connect(func() -> void:
+		announced.append(game.context.total_energy()))
+
+	_take_and_bank(game)
+
+	assert_eq(game.context.turn, 2, "a second turn has rolled")
+	assert_true(announced.size() > 0, "and it said so")
+	assert_eq(
+		announced[announced.size() - 1],
+		game.context.pool.total_value(),
+		"the last thing the row was told is the budget the turn actually has"
+	)
+
+## A game whose first turn is on the table, the way FarkleGame.start() leaves it.
+func _started_game() -> FarkleGame:
+	var ruleset := Ruleset.new()
+	ruleset.id = &"test_energy"
+	ruleset.dice_count = 6
+	ruleset.turns = 5
+	var objective := ScoreTargetObjective.new()
+	# Out of reach, so banking ends the turn rather than the level.
+	objective.target_score = 100000
+	ruleset.objective = objective
+	var game := FarkleGame.new(ruleset, RngService.new(5))
+	game.start()
+	return game
+
+## Forces one scoring die, takes it and banks, which is the shortest road to a
+## turn boundary that does not depend on what the seed rolled.
+func _take_and_bank(game : FarkleGame) -> void:
+	# An opening roll can bust, and that ends the turn just as well. Guarded
+	# rather than seeded around: what is under test is the boundary, not the
+	# road to it, and a test that only holds for one seed is a trap for whoever
+	# changes the bag next.
+	if game.state == FarkleGame.State.FARKLED:
+		game.continue_after_farkle()
+		return
+
+	var in_play := game.get_dice_in_play()
+	for i in in_play.size():
+		in_play[i].current_face = DieFace.create(&"fixed", 1 if i == 0 else 3)
+	game.rules = ElementRules.new(game.get_dice_in_play(), game.get_active_cards())
+	game.select_all_scoring()
+	game.commit_selection()
+	game.bank()
+
 func test_energy_never_reads_as_negative() -> void:
 	_context.spend_energy(21)
 	_context.energy_spent = 999
