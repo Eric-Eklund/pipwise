@@ -88,8 +88,8 @@ func show_score(score : DiceScore) -> void:
 	else:
 		_play(combo, "+%d" % score.total(), Element.get_color(score.combo_element))
 
-## Announces a card. Its own colour rather than a neutral one, so a potion reads
-## as the element it boosts before the player has finished the tap.
+## Announces a card. Its own colour rather than a neutral one, so a card reads
+## as itself before the player has finished the tap.
 func show_card(card : Card) -> void:
 	if card == null:
 		return

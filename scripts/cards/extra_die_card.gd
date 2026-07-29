@@ -1,52 +1,46 @@
 class_name ExtraDieCard
 extends Card
-## Section 3.2's Extra Die, reworked into Second Wind: a die you already set
-## aside comes back to the table and is rolled again.
+## Extra Die: one more die lands on the table, rolled, for the rest of the turn.
 ##
-## §3.2 asks for "+1 die this round" — a seventh die. The pool is fixed at what
-## the bag holds and nothing grows it, so that card cannot be built without a
-## temporary die that the tray, the energy budget and hot dice would all have to
-## learn about. What is built instead is the nearest honest thing, and the name
-## says so: the card is a second wind for a die, not an extra one. See the
-## deviations section of docs/DESIGN.md.
+## The pool is the bag the player brought, so this is the one card that changes
+## how many dice are in play. The die is lent rather than given —
+## `DicePool.reset_turn()` takes it back at the turn boundary — because a die
+## that outlived the turn it was bought for would quietly grow the bag for the
+## rest of the level, and every target in `Campaign.TARGETS` was measured
+## against six.
 ##
-## The id stays `extra_die`. It is what a saved hand stores, so renaming it would
-## empty the hand of anyone mid-run; the display name is the part the player
-## reads and the part that had to change.
+## ## What a seventh die costs you
 ##
-## ## Why it rerolls
-##
-## Restoring alone hands the die back on the face it was set aside on — and it
-## was set aside because that face scored. So the die arrived already scoring and
-## could be taken a second time, which made this a "score one die twice" card
-## wearing a dice card's name. Rolling it is what makes it a gamble again: the
-## die can come back worth nothing.
-##
-## Nature now does the same, for the same reason and at a higher price: handing
-## its dice back unrolled turned out to be a scoring loop with no exit. See
-## FarkleGame._return_to_table().
+## A straight and three pairs both want the whole table (FarkleScorer's
+## WHOLE_SET_SIZE), so while the extra die is out neither can fire — seven dice
+## are not six. That is the rule staying one rule rather than growing a special
+## case, and it is worth knowing before playing this on a board showing five
+## different faces. Set a die aside and the table is six again.
 
-## Dice this brings back.
-@export_range(1, 6) var count : int = 1
-
-## Refused unless the turn would still have a die set aside afterwards.
+## How many dice may be on the table at once.
 ##
-## Two reasons, and the second is the load-bearing one. Nothing to give back is
-## nothing to buy. And can_push() needs a commitment to roll against, so
-## restoring the *last* set aside die would leave a board with nothing to take
-## (the reroll may score nothing), nothing to push, and — on level 5, behind
-## MinimumBankModifier — nothing to bank either. That is the dead board this
-## project keeps a whole probe for, and the guard is cheaper than the escape.
+## Not a balance cap — it is the row. `DiceTray` floors a die at MIN_DIE_SIZE,
+## so past a point the dice stop shrinking and the tray starts asking the board
+## for more width than the screen has, which drags the whole layout off both
+## edges. Nine 44px dice and their 8px gaps come to 460 of the board's 496; a
+## tenth would not fit.
+const MAX_DICE := 9
+
+## Dice this puts on the table. One is the card; the export is here so that a
+## future upgrade to it is data rather than a second class.
+@export_range(1, 4) var count : int = 1
+
 func can_play(game) -> bool:
-	return game != null and game.get_pool().set_aside_count() > count
+	return game != null and game.get_pool().size() + count <= MAX_DICE
 
-func get_refusal(game) -> String:
-	if game.get_pool().set_aside_count() == 0:
-		return "Nothing set aside to bring back."
-	return "The last die set aside has to stay, or there is nothing left to roll against."
+func get_refusal(_game) -> String:
+	return "There is no room on the table for another die."
 
 func on_played(game) -> void:
-	# Through the game's own seeded stream, like every other roll in the engine:
-	# a fixed seed has to reproduce a run, cards included.
-	for die in game.get_pool().restore(count):
+	for _i in count:
+		# Typed rather than inferred: [param game] is untyped on purpose (see
+		# Card.on_played), so nothing here knows what the pool hands back.
+		var die : Die = game.get_pool().add_die(StarterDice.create_basic_d6())
+		# Through the game's own seeded stream, like every other roll in the
+		# engine: a fixed seed has to reproduce a run, cards included.
 		die.roll(game.context.rng)

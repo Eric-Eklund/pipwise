@@ -22,6 +22,8 @@ var dice : Array[Die] = []
 var roll_count : int = 0
 
 var _rng : RngService
+## Dice a card put on the table this turn. Lent, not given — see add_die().
+var _lent : Array[Die] = []
 
 func _init(definition : BagDefinition, rng : RngService) -> void:
 	_rng = rng
@@ -30,6 +32,27 @@ func _init(definition : BagDefinition, rng : RngService) -> void:
 
 func size() -> int:
 	return dice.size()
+
+## Puts one more die on the table, unrolled and in play. Extra Die's doing, and
+## the only thing in the game that changes how many dice a turn is played with.
+##
+## The die is **lent for the turn**: reset_turn() takes it back. A die that
+## outlived the turn it was bought for would quietly grow the bag for the rest
+## of the level, and every target in Campaign.TARGETS was measured against the
+## bag the level deals.
+##
+## Returned rather than rolled here, because rolling is the caller's to do
+## through the game's seeded stream — the pool's own rng rolls what is already
+## on the table.
+func add_die(die_type : DieType) -> Die:
+	var die := Die.new(die_type)
+	dice.append(die)
+	_lent.append(die)
+	return die
+
+## The dice a card lent this turn, in the order they arrived.
+func get_lent() -> Array[Die]:
+	return _lent.duplicate()
 
 # --- what is where ---------------------------------------------------------
 
@@ -141,8 +164,13 @@ func reset_for_hot_dice() -> void:
 		die.is_set_aside = false
 	hot_dice.emit()
 
-## Clears the turn: everything back in play, roll count back to zero.
+## Clears the turn: everything back in play, roll count back to zero, and any
+## die a card lent handed back. The bag the next turn is played with is the bag
+## the level dealt.
 func reset_turn() -> void:
+	for die in _lent:
+		dice.erase(die)
+	_lent.clear()
 	for die in dice:
 		die.is_set_aside = false
 	roll_count = 0

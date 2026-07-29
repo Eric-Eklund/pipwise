@@ -90,6 +90,9 @@ func play_roll() -> void:
 func refresh_state(game : FarkleGame) -> void:
 	if not is_node_ready() or die == null:
 		return
+	if game.is_targeting():
+		_refresh_targeting(game)
+		return
 	var marked := game.is_selected(die)
 	var selectable := marked or game.can_select(die)
 	disabled = not selectable
@@ -105,6 +108,26 @@ func refresh_state(game : FarkleGame) -> void:
 		tooltip_text = "Tap to mark. %s" % _element_hint()
 	else:
 		tooltip_text = "Scores nothing on its own."
+
+## While a card is waiting for a die, the tray answers a different question:
+## not "does this score" but "would the card take it". A die the card cannot use
+## goes dark even when it is the best thing on the table, which is the only way
+## the player can see what the card is asking for.
+##
+## The marked badge is dropped for the same reason. A selection cannot be taken
+## while a card is waiting, so a die still wearing its tick would be offering an
+## action that is not on.
+func _refresh_targeting(game : FarkleGame) -> void:
+	var targetable := game.can_target(die)
+	disabled = not targetable
+	modulate = HELD_MODULATE if targetable else UNAFFORDABLE_MODULATE
+	_face_view.set_badges(die.is_set_aside, false)
+	_face_view.set_dimmed(not targetable and not die.is_set_aside)
+	var card := game.get_targeting_card()
+	if targetable:
+		tooltip_text = "%s — %s" % [card.display_name, card.target_prompt()]
+	else:
+		tooltip_text = "%s cannot use this die." % card.display_name
 
 func _element_hint() -> String:
 	if die.element == Element.NONE:

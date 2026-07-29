@@ -16,58 +16,71 @@ func test_every_listed_card_can_be_looked_up() -> void:
 func test_an_unknown_id_is_null_rather_than_a_crash() -> void:
 	assert_null(CardLibrary.by_id(&"no_such_card"), "a renamed card is gone, not fatal")
 
-func test_the_slice_is_scrolls_and_potions() -> void:
-	assert_eq(CardLibrary.by_rarity(Card.Rarity.COMMON).size(), 4, "four scrolls")
-	assert_eq(CardLibrary.by_rarity(Card.Rarity.UNCOMMON).size(), 6, "six potions")
-	for rarity in [Card.Rarity.RARE, Card.Rarity.EPIC, Card.Rarity.LEGENDARY]:
-		assert_eq(CardLibrary.by_rarity(rarity).size(), 0, "nothing above uncommon yet")
+func test_the_base_set_is_seven_cards() -> void:
+	assert_eq(CardLibrary.all().size(), 7, "the seven base cards and nothing else")
 
 func test_every_card_names_and_explains_itself() -> void:
 	for card in CardLibrary.all():
 		assert_false(card.display_name.is_empty(), "%s has a name" % card.id)
 		assert_false(card.description.is_empty(), "%s says what it does" % card.id)
+		assert_false(card.icon.is_empty(), "%s has a glyph to be found by" % card.id)
 		assert_true(card.energy_cost > 0, "%s costs something" % card.id)
 
-## Section 3.3 gives one potion per element, and all six elements are dealt by
-## the campaign now — so a potion for an element the player can never own would
-## be a dead draw.
-func test_there_is_one_potion_for_every_element() -> void:
-	var covered : Dictionary = {}
-	for card in CardLibrary.by_rarity(Card.Rarity.UNCOMMON):
-		covered[card.element] = true
-	for element in Element.ALL:
-		assert_true(covered.has(element), "%s has a potion" % element)
-
-func test_the_scrolls_carry_no_element() -> void:
-	for card in CardLibrary.by_rarity(Card.Rarity.COMMON):
-		assert_eq(card.element, Element.NONE, "%s is elementless" % card.id)
-
-## The document's own energy costs, kept for every card that survived into this
-## build. Pinned so a balance pass has to be a decision rather than a drift.
-func test_the_costs_are_the_design_documents() -> void:
+## The costs the base set was specified with. Pinned so a balance pass has to be
+## a decision rather than a drift.
+func test_the_costs_are_the_ones_that_were_specified() -> void:
 	var expected := {
-		CardLibrary.EXTRA_DIE: 3, CardLibrary.SHIELD: 5,
-		CardLibrary.DRAW_TWO: 3, CardLibrary.DISCARD_SWAP: 4,
-		CardLibrary.FIRE_BREW: 5, CardLibrary.FROST_SHIELD: 6,
-		CardLibrary.STORM_CALL: 7, CardLibrary.EARTH_RESTORE: 5,
-		CardLibrary.SHADOW_VEIL: 6, CardLibrary.CRYSTAL_FOCUS: 8,
+		CardLibrary.EXTRA_DIE: 3,
+		CardLibrary.SCORE_BOOST: 4,
+		CardLibrary.VALUE_SHIFT: 5,
+		CardLibrary.LOCK_ALL: 2,
+		CardLibrary.VALUE_CONVERTER: 4,
+		CardLibrary.FARKLE_SHIELD: 6,
+		CardLibrary.FORCED_REROLL: 5,
 	}
 	for id in expected:
 		assert_eq(CardLibrary.by_id(id).energy_cost, int(expected[id]), String(id))
+
+## A turn here is many rolls, so a card's lifetime cannot be left to a comment:
+## Score Boost buys the board in front of you and Farkle Shield buys the roll you
+## have not made yet, and FarkleGame clears the two at different moments.
+func test_only_the_lasting_cards_last() -> void:
+	var expected := {
+		CardLibrary.EXTRA_DIE: Card.Duration.INSTANT,
+		CardLibrary.LOCK_ALL: Card.Duration.INSTANT,
+		CardLibrary.VALUE_SHIFT: Card.Duration.INSTANT,
+		CardLibrary.VALUE_CONVERTER: Card.Duration.INSTANT,
+		CardLibrary.SCORE_BOOST: Card.Duration.ROLL,
+		CardLibrary.FORCED_REROLL: Card.Duration.ROLL,
+		CardLibrary.FARKLE_SHIELD: Card.Duration.TURN,
+	}
+	for id in expected:
+		assert_eq(CardLibrary.by_id(id).duration, expected[id], String(id))
+
+## The two that ask for a die, and the five that do not. A card that quietly
+## grew a targeting step would stop the board on a question nothing answers.
+func test_only_the_value_cards_ask_for_a_die() -> void:
+	for card in CardLibrary.all():
+		var asks := card.id in [CardLibrary.VALUE_SHIFT, CardLibrary.VALUE_CONVERTER]
+		assert_eq(card.needs_target(), asks, "%s asks for a die: %s" % [card.id, asks])
+		if asks:
+			assert_false(card.target_prompt().is_empty(), "%s says what to tap" % card.id)
 
 ## Cards are shared instances, so one carrying per-play state would leak it into
 ## every other hand holding the same card.
 func test_a_card_is_the_same_object_everywhere() -> void:
 	assert_true(
-		CardLibrary.by_id(CardLibrary.SHIELD) == CardLibrary.by_id(CardLibrary.SHIELD),
+		CardLibrary.by_id(CardLibrary.LOCK_ALL) == CardLibrary.by_id(CardLibrary.LOCK_ALL),
 		"looked up twice, the same card"
 	)
 
 # --- decks -----------------------------------------------------------------
 
-func test_a_deck_holds_every_card_weighted_by_rarity() -> void:
+func test_a_deck_holds_every_card_several_times_over() -> void:
 	var deck := CardLibrary.build_deck(RngService.new(7))
-	assert_eq(deck.size(), 4 * 3 + 6 * 1, "three of each scroll, one of each potion")
+	assert_eq(deck.size(), 7 * CardLibrary.COPIES_PER_CARD, "three of each")
+	for id in CardLibrary.ORDER:
+		assert_eq(deck.count(id), CardLibrary.COPIES_PER_CARD, "%s is in it" % id)
 
 ## A fixed seed has to reproduce a whole run, and the cards are part of the run.
 func test_the_same_seed_deals_the_same_deck() -> void:
@@ -106,19 +119,14 @@ func test_an_empty_deck_reshuffles_rather_than_running_dry() -> void:
 
 func test_discarding_removes_one_copy() -> void:
 	var hand := CardHand.new(RngService.new(3))
-	hand.hand = [CardLibrary.SHIELD, CardLibrary.SHIELD] as Array[StringName]
-	assert_true(hand.discard(CardLibrary.SHIELD), "found")
+	hand.hand = [CardLibrary.LOCK_ALL, CardLibrary.LOCK_ALL] as Array[StringName]
+	assert_true(hand.discard(CardLibrary.LOCK_ALL), "found")
 	assert_eq(hand.size(), 1, "one copy left")
-	assert_true(hand.holds(CardLibrary.SHIELD), "and it is still held")
+	assert_true(hand.holds(CardLibrary.LOCK_ALL), "and it is still held")
 
 func test_discarding_what_is_not_held_fails() -> void:
 	var hand := CardHand.new(RngService.new(3))
-	assert_false(hand.discard(CardLibrary.SHIELD), "nothing to discard")
-
-func test_a_swap_draws_back_what_it_threw_away() -> void:
-	var hand := CardHand.create(RngService.new(3))
-	hand.swap_all()
-	assert_eq(hand.size(), 5, "the same number, a different five")
+	assert_false(hand.discard(CardLibrary.LOCK_ALL), "nothing to discard")
 
 ## Restoring must not reshuffle. Quitting between levels and coming back would
 ## otherwise reroll the run's future, which is the one thing a player would
@@ -131,5 +139,5 @@ func test_a_restored_hand_keeps_the_deck_it_was_saved_with() -> void:
 
 func test_get_cards_skips_an_id_that_no_longer_exists() -> void:
 	var hand := CardHand.new(RngService.new(3))
-	hand.hand = [CardLibrary.SHIELD, &"deleted_card"] as Array[StringName]
+	hand.hand = [CardLibrary.LOCK_ALL, &"deleted_card"] as Array[StringName]
 	assert_eq(hand.get_cards().size(), 1, "the missing one is dropped, not fatal")

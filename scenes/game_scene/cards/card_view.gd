@@ -136,8 +136,8 @@ func set_card(new_card : Card) -> void:
 	tooltip_text = card.description
 	_paint(card.get_color())
 
-## Border and name in the card's own colour, so a row of potions can be scanned
-## by element the same way the dice are.
+## Border and name in the card's own colour, so a hand of five can be scanned
+## at a glance, the same way the dice are.
 func _paint(color : Color) -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(color.r, color.g, color.b, 0.14)

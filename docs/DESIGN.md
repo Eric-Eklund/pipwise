@@ -485,10 +485,12 @@ The first playable slice is dice only: the turn loop, six elements, the §2.1
 combo ladder and the §2.2 trios at their level-1 tier, roughly ten levels and
 endless mode.
 
-Cards arrived after the dice: §3's Scrolls and Potions are built, which is §4's
-step 3 and the last thing missing from the shape of a turn. Artifacts, Spells and
-Relics are not — see deviation 8 for which of them can be transcribed and which
-need rules that do not exist yet.
+Cards arrived after the dice, which is §4's step 3 and the last thing missing
+from the shape of a turn. What is built is a **base set of seven**, not §3's
+list: the transcribed Scrolls and Potions were removed for being mostly element
+multipliers on boards with no elements. Artifacts, Spells and Relics are not
+built — see deviation 8 for the set that ships, and for which of §3's remainder
+can be transcribed and which need rules that do not exist yet.
 
 Not built yet, in rough priority order: the rest of the cards (§3.4-3.6), the
 shop and currencies (§6), per-die levelling (§1.4), dice evolution and D8+
@@ -546,56 +548,102 @@ search has no way to decline one.
 **Overload's +5000 is paid outside the multiplier.** Inside it, on the only hand
 that can fire it, it would be +25000 and the number would stop meaning anything.
 
-### 8. Seven cards do nothing in this build, and are not built
+### 8. The card set is seven base cards, not §3's twenty-eight
 
-§3 lists 28 cards. Ten are built — the Scrolls and the Potions, §4's missing
-step 3 — and the rest wait. But seven of them cannot simply be transcribed later,
-because they are written against rules this build does not have. Recorded here so
-the next slice does not ship them dead.
+§3 lists 28 cards across five rarities. The first pass transcribed ten of them —
+the Scrolls and the Potions — and that slice was **removed**. What ships instead
+is a base set of seven cards that owes §3 its energy costs and its shape and
+almost nothing else.
+
+**Why the transcribed slice was thrown away.** Six of the ten were "your element
+pays double this round". That is a card whose whole effect is a number the player
+cannot see move, on a board that has to already be carrying the right element
+before the card does anything at all — and §5's schedule deals no elements until
+level 3 and then one at a time, so at most two of the six could ever pay on a
+given level. The fix at the time was to grey out a potion whose element was
+missing, which was correct and made the problem legible rather than solving it: a
+hand of five cards routinely offered one that worked. A card system where most of
+the hand is waiting for a level is not a card system.
+
+**The seven.** One thing each, visible the moment it is played, and none of them
+needing an element on the table:
+
+| Card | Energy | Effect | Lasts |
+| --- | --- | --- | --- |
+| Lock All | 2 | Sets aside the best selection and commits its points | Instant |
+| Extra Die | 3 | One more die, rolled, on the table | The turn |
+| Score Boost | 4 | Matched sets pay +50% | Until you roll |
+| Value Converter | 4 | A non-scoring die becomes a 1 or a 5, at random | Instant |
+| Value Shift | 5 | One die moves a pip, up or down | Instant |
+| Forced Reroll | 5 | Push with nothing set aside; no banking until you do | Until you roll |
+| Farkle Shield | 6 | The next Farkle costs nothing | The turn |
+
+Between them they touch every part of a turn — the dice on it, what a selection
+is worth, what a bust costs, and what the buttons will let you do — which is what
+makes them a set rather than a list.
+
+**"One round" had to become two answers.** §3 gives every card a duration of one
+round, written against §4's stage flow where a stage is one push-your-luck
+sequence. Here a turn is many rolls, and the two readings are different cards:
+Score Boost buys the board in front of you (`Duration.ROLL`) and Farkle Shield
+buys the roll you have not made yet (`Duration.TURN`). `FarkleGame` clears the
+first in `_roll()` and the second in `_begin_turn()`.
+
+**Extra Die is §3.2's card, built.** "+1 die this round" was previously reworked
+into a die coming back from the set-aside row, on the argument that the pool is
+fixed at what the bag holds. It is now literal: `DicePool.add_die()` lends a die
+for the turn and `reset_turn()` takes it back, because a die that outlived its
+turn would quietly re-measure every target in `Campaign.TARGETS`. The cost is
+that a straight and three pairs both want the *whole table* — with seven dice out
+neither can fire until one is set aside. That is the scoring rule staying one
+rule instead of growing a special case.
+
+**Farkle Shield saves the points, not just the penalty.** Read strictly, "a
+Farkle gives 0 instead of −100" is about `Ruleset.farkle_penalty` — and
+`Campaign.penalty_from_level` charges nothing before level 6, so a card that only
+zeroed it would be worth exactly nothing for the first half of a run. That is
+this section's own recurring trap. The turn's points are what a Farkle takes on
+every level, so those are what it protects; the penalty goes with them, since
+`FarkleGame._farkle()` banks the turn and never reaches the charge.
+
+**Forced Reroll spends the rule the game is built on.** `can_push()` demands a
+commitment before another roll, because a free retry is the one thing Farkle must
+never allow. This card buys that retry once and pays for it with `can_bank()`: a
+turn holding points cannot be ended until the roll it demanded has happened. It
+is the only route around the rule, and deliberately the expensive one.
+
+**Two cards ask for a die.** Value Shift and Value Converter open a targeting
+step: the card is *not* paid for on the tap, the tray relights around the dice
+that card would accept, the three buttons are refused, and Cancel costs nothing.
+Deferring the payment rather than refunding it means backing out has one code
+path instead of three — see `FarkleGame.apply_target()`. A card is never offered
+when no die would satisfy it, because a targeting step with nothing in it is a
+board whose only legal move is to undo the last one.
+
+**What is still not built, and why it is not simply "the rest of §3".** The
+artifacts, spells and relics of §3.4-3.6 stay unbuilt, and several of them cannot
+be transcribed even later:
 
 | Card | Decision | Why |
 | --- | --- | --- |
-| Extra Die | **Reworked** | "+1 die this round" is a seventh die, and the pool is fixed at what the bag holds — growing it would reach into the tray, the energy budget and hot dice at once. Built as **Second Wind**: a die you set aside comes back *rolled again*. Restoring it unrolled handed it back on the face that scored, so the card was worth one die's points twice over rather than a gamble. Its id is still `extra_die`, because that is what a saved hand stores |
 | Reroll Token, Forest Charm | **Dropped** | Rerolls are unlimited and free here (deviation 2). "+1 free reroll" is +1 of something you already have infinitely |
 | Coin Boost | **Dropped** | There is no currency (§6 unbuilt) |
 | Ice Scepter | Deferred | "Ice pairs count as triples" *is* the Ice trio, exactly. Needs a different effect before it can be an artifact |
-| Crystal Focus | **Reworked** | "Triples all 1s" is already Crystal's base rule. Built as "doubles Crystal's bonus" |
-| Shadow Veil | **Reworked** | "+100% Farkle points" doubles zero — a Farkle costs points here, it does not pay them, unless three Shadow dice are out. Built as "a Farkle pays you this turn", which is the trio's effect bought for one turn |
+| Crystal Focus | **Dropped** | "Triples all 1s" is already Crystal's base rule |
 | Phoenix Feather | Deferred | "Death costs half your items" — death costs no items. The dice collection is permanent |
 | Dragon Heart | Deferred | Needs the wild mechanic deliberately not built for Elemental Master (deviation 7) |
 
-The trap worth naming: a uniform potion — "double your element's bonus" — reads
-like it would cover all six neatly, and it is dead for two of them. **Nature and
-Shadow pay no points at all**; Nature returns dice and Shadow softens a bust.
-Four potions are the uniform kind and two are their own effects, which is why
-`ElementBoostCard` covers Fire, Ice, Lightning and Crystal and no more.
+The trap worth naming twice, because the first card pass walked into it and the
+next one will be tempted to: **a uniform per-element card is dead for two of the
+six elements.** Nature and Shadow pay no points at all — Nature returns dice and
+Shadow softens a bust — so "double your element's bonus" doubles zero for both.
+Any future element card has to be six effects or none.
 
-**A potion is refused on a board without its element.** This reverses an earlier
-decision, recorded here because the earlier one was deliberate and argued: a
-potion for an element you did not bring is a bad draw, and Discard Swap is the
-answer to a hand of them. That is still true. What it missed is §5's schedule.
-The campaign deals **no elements at all until level 3**, and each element arrives
-once — Lightning on 6, Nature on 7 — so at most two of the six potions can pay on
-any level, and none can on the two levels where a new player first meets the
-hand. Every one of them was drawn bright, buyable, and worth nothing, and the
-first thing a player did with the card row was spend a quarter of a turn's energy
-on a card that did not move a single number. `can_play()` now answers false when
-the element is not in play, which costs the player nothing: the card sits in hand
-until the level it was drawn for.
-
-`ShadowVeilCard` is deliberately **not** guarded this way. It carries
-`Element.SHADOW` for its name and its colour and nothing else — it grants the
-trio's effect outright rather than multiplying a die's share, so it pays on a
-board with no Shadow die anywhere.
-
-Holding a card down opens `CardDetailWindow`, which is where the refusal is
+Holding a card down opens `CardDetailWindow`, which is where a refusal is
 explained. That window is the only place the game says *why* a card will not go,
 so it answers for a greyed out card as readily as a bright one — which is why
 `CardView` times its hold off `_gui_input` rather than `button_down`: a disabled
 Button emits no button signals at all.
-
-**A card's "one round" is one turn**, not one level. §4's stage flow reads as a
-level, but its steps are a single push-your-luck sequence, which is a turn here.
 
 **Energy is a per-turn budget, taken once.** §4 sets it at "stage start". Read
 live it moves under the player mid-turn — spend nine, push into a worse roll, and

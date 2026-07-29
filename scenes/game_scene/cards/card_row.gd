@@ -1,6 +1,7 @@
 class_name CardRow
 extends VBoxContainer
-## The hand, under the dice: what is holdable and what this turn can pay for.
+## The hand, under the dice: what is holdable, what this turn can pay for, and —
+## while a card is waiting for a die — what that card is asking.
 ##
 ## Its own row rather than more buttons beside Take, Roll and Bank. Those three
 ## are deliberately nailed in place — see the class comment on FarkleLevel — so
@@ -10,18 +11,41 @@ extends VBoxContainer
 ## Rebuilt on every change rather than reparented like the dice. A card leaves
 ## the hand for good when it is played, so there is no object to keep alive, and
 ## a hand of five is cheap to redraw.
+##
+## ## The targeting bar
+##
+## Value Shift and Value Converter ask for a die after they are tapped, and the
+## row is where that conversation happens: the hand is replaced by the card's
+## prompt, whatever choices it offers, and a way out. Replaced rather than added
+## to, because the two cannot both be live — no other card may be played while
+## one is waiting — and because a row that grew a second line would push the
+## board taller mid-turn.
 
 signal card_pressed(card : Card)
 ## A card was held down. The level answers it with the card's detail window.
 signal card_held(card : Card)
+## One of the waiting card's choices was armed, by index.
+signal target_choice_picked(index : int)
+## The player backed out of a targeting step.
+signal target_cancelled
 
 ## Shown above the row so the cost on each card means something.
 const ENERGY_COLOR := Color(0.98, 0.85, 0.42)
 const SPENT_COLOR := Color(0.55, 0.58, 0.64)
+## The armed choice, against the muted look of the one that is not.
+const ARMED_COLOR := Color(0.13, 0.15, 0.20)
 
 var _energy_label : Label
 var _cards_box : HBoxContainer
 var _views : Array[CardView] = []
+
+var _target_box : HBoxContainer
+var _target_label : Label
+var _choices_box : HBoxContainer
+var _choice_buttons : Array[Button] = []
+## The card the choice buttons were built for, so they are rebuilt when it
+## changes and not on every refresh.
+var _target_card : Card
 
 func _ready() -> void:
 	add_theme_constant_override(&"separation", 4)
@@ -43,6 +67,8 @@ func _ready() -> void:
 	_cards_box.add_theme_constant_override(&"separation", 5)
 	add_child(_cards_box)
 
+	_build_target_box()
+
 ## Redraws the hand and its state. One call, because the hand and what it can
 ## afford change together — playing a card moves both.
 func refresh(game : FarkleGame) -> void:
@@ -56,6 +82,15 @@ func refresh(game : FarkleGame) -> void:
 	if not visible:
 		return
 
+	var targeting := game.is_targeting()
+	_cards_box.visible = not targeting
+	_target_box.visible = targeting
+	if targeting:
+		_refresh_target(game)
+		_refresh_energy(game)
+		return
+
+	_target_card = null
 	if _views.size() != cards.size():
 		_rebuild(cards)
 	else:
@@ -99,3 +134,73 @@ func _refresh_energy(game : FarkleGame) -> void:
 		return
 	_energy_label.text = "⚡ %d of %d" % [left, total]
 	_energy_label.add_theme_color_override(&"font_color", ENERGY_COLOR)
+
+# --- targeting --------------------------------------------------------------
+
+func _build_target_box() -> void:
+	_target_box = HBoxContainer.new()
+	_target_box.name = "Targeting"
+	_target_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_target_box.add_theme_constant_override(&"separation", 6)
+	_target_box.visible = false
+	add_child(_target_box)
+
+	_target_label = Label.new()
+	_target_label.name = "TargetPrompt"
+	_target_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_target_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_target_label.add_theme_font_size_override(&"font_size", 13)
+	_target_box.add_child(_target_label)
+
+	_choices_box = HBoxContainer.new()
+	_choices_box.name = "Choices"
+	_choices_box.add_theme_constant_override(&"separation", 4)
+	_target_box.add_child(_choices_box)
+
+	# Named so the probe can back a level out of a targeting step it could not
+	# finish. A card waiting for a die refuses Take, Roll and Bank, so this is
+	# the only way off the board — and a way off the board that nothing checks is
+	# how the game ends up with a dead one.
+	var cancel := Button.new()
+	cancel.name = "CancelTargetButton"
+	cancel.text = "Cancel"
+	cancel.custom_minimum_size = Vector2(74, CardView.CARD_HEIGHT * 0.5)
+	cancel.pressed.connect(func() -> void: target_cancelled.emit())
+	_target_box.add_child(cancel)
+
+func _refresh_target(game : FarkleGame) -> void:
+	var card := game.get_targeting_card()
+	_target_label.text = card.target_prompt()
+	_target_label.add_theme_color_override(&"font_color", card.get_color())
+	if _target_card != card:
+		_target_card = card
+		_rebuild_choices(card)
+	var armed := game.get_target_choice()
+	for i in _choice_buttons.size():
+		_choice_buttons[i].button_pressed = i == armed
+		_choice_buttons[i].add_theme_color_override(
+			&"font_color", card.get_color() if i == armed else SPENT_COLOR
+		)
+
+## One toggle per choice the card offers, and none at all for a card whose only
+## question is which die.
+func _rebuild_choices(card : Card) -> void:
+	for button in _choice_buttons:
+		# Unparented before freeing, like every other row in this project: a
+		# queued node still asks the layout for its width. See _rebuild().
+		_choices_box.remove_child(button)
+		button.queue_free()
+	_choice_buttons.clear()
+
+	var choices := card.target_choices()
+	for i in choices.size():
+		var button := Button.new()
+		button.text = choices[i]
+		button.toggle_mode = true
+		# Wide enough for a thumb: 48px against a 540 viewport is about 36dp on a
+		# 1440-wide phone, and these sit between two other targets.
+		button.custom_minimum_size = Vector2(52, CardView.CARD_HEIGHT * 0.5)
+		var index := i
+		button.pressed.connect(func() -> void: target_choice_picked.emit(index))
+		_choices_box.add_child(button)
+		_choice_buttons.append(button)
